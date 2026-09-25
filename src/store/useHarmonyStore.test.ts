@@ -7,6 +7,7 @@ vi.mock("../audio/piano", () => ({
 }));
 
 import { playChord } from "../audio/piano";
+import { inferKey, toPickerKey } from "../theory/chords";
 import { getContinuations } from "../theory/continuations";
 import type { KeyContext } from "../theory/types";
 import { STORAGE_KEY, createHarmonyStore } from "./useHarmonyStore";
@@ -60,6 +61,30 @@ describe("presets no localStorage", () => {
     store.getState().deletePreset(id);
     expect(store.getState().presets).toEqual([]);
     expect(createHarmonyStore().getState().presets).toEqual([]);
+  });
+
+  it("mantém a lista na memória se o navegador recusar a gravação", () => {
+    const store = createHarmonyStore();
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("quota", "QuotaExceededError");
+    });
+    try {
+      expect(store.getState().savePreset("Só na sessão")).toBe(true);
+      expect(store.getState().presets.map((preset) => preset.name)).toContain("Só na sessão");
+      expect(store.getState().storageNotice).toMatch(/navegador/);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("abre D♯7 já reescrito como E♭7", () => {
+    const store = createHarmonyStore();
+    const key = toPickerKey(inferKey("D#", "7"));
+    store.getState().applyStart("D#", "7", key);
+    expect(store.getState().center.symbol).toBe("Eb7");
+    expect(store.getState().key).toEqual({ tonic: "Ab", mode: "major" });
+    expect(store.getState().inspected.group).not.toBe("chromatic");
+    expect(getContinuations("Eb7", key).some((move) => move.strong)).toBe(true);
   });
 
   it("JSON corrompido vira uma lista vazia", () => {

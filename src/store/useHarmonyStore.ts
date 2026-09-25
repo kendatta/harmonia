@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { playChord, silence } from "../audio/piano";
 import { describeChordInKey, symbolInKey } from "../theory/continuations";
-import { notesOfSymbol, sameKey, symbolFrom } from "../theory/chords";
+import { notesOfSymbol, sameKey, spellRootForKey, symbolFrom } from "../theory/chords";
 import type { Continuation, Group, KeyContext, Quality } from "../theory/types";
 
 export interface HarmonyChord {
@@ -61,6 +61,8 @@ interface HarmonyState {
   inspected: ProgressionStep;
   sounding: Sounding | null;
   transitionFrom: TransitionFrom | null;
+  /** Set when the browser refuses to persist presets. The in-memory list stays. */
+  storageNotice: string | null;
   applyStart: (root: string, quality: Quality, key: KeyContext) => void;
   chooseContinuation: (move: Continuation) => void;
   replayCenter: () => void;
@@ -130,9 +132,16 @@ function readPresets(): Preset[] {
   }
 }
 
-function writePresets(presets: Preset[]) {
-  if (typeof localStorage === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(presets));
+const STORAGE_NOTICE = "Não consegui gravar no navegador. A lista fica só nesta sessão.";
+
+function writePresets(presets: Preset[]): boolean {
+  if (typeof localStorage === "undefined") return true;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(presets));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function sleep(ms: number) {
@@ -267,10 +276,11 @@ export function createHarmonyStore() {
     inspected: initialStep,
     sounding: null,
     transitionFrom: null,
+    storageNotice: null,
 
     applyStart: (root, quality, key) => {
       killTransport();
-      const symbol = symbolFrom(root, quality);
+      const symbol = symbolFrom(spellRootForKey(root, key), quality);
       const center = chordOf(symbol);
       const step = stepFrom(symbol, key);
       set({
@@ -347,19 +357,20 @@ export function createHarmonyStore() {
         createdAt: Date.now(),
       };
       const presets = [preset, ...get().presets];
-      set({ presets });
-      writePresets(presets);
+      const wrote = writePresets(presets);
+      set({ presets, storageNotice: wrote ? null : STORAGE_NOTICE });
       return true;
     },
 
     deletePreset: (id) => {
       const presets = get().presets.filter((preset) => preset.id !== id);
       if (get().playingPresetId === id) killTransport();
+      const wrote = writePresets(presets);
       set({
         presets,
         selectedPresetId: get().selectedPresetId === id ? null : get().selectedPresetId,
+        storageNotice: wrote ? null : STORAGE_NOTICE,
       });
-      writePresets(presets);
     },
 
     loadPreset: (id) => {

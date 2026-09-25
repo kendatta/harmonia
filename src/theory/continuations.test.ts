@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { familyName } from "../components/groupMeta";
+import { familyName, functionName } from "../components/groupMeta";
+import { FLAT_ROOTS, QUALITY_OPTIONS, SHARP_ROOTS, inferKey, spellRootForKey, symbolFrom, toPickerKey } from "./chords";
 import { describeChordInKey, getContinuations } from "./continuations";
 import { degreeNumber, layoutContinuations } from "./layout";
 import type { Continuation, KeyContext } from "./types";
@@ -283,6 +284,13 @@ describe("continuações por centro em Dó maior", () => {
     expect(getContinuations("D7", Cmaj).find((move) => move.symbol === "A7")?.strong).toBe(false);
   });
 
+  it("as outras dominantes secundárias resolvem no grau e na enganosa", () => {
+    expect(strongSymbols("A7")).toEqual(["Bdim", "Dm"]);
+    expect(strongSymbols("E7")).toEqual(["Am", "F"]);
+    expect(strongSymbols("C7")).toEqual(["Dm", "F"]);
+    expect(strongSymbols("B7")).toEqual(["C", "Em"]);
+  });
+
   it("iv vai a I e V", () => {
     expect(strongSymbols("Fm")).toEqual(["C", "G"]);
   });
@@ -310,6 +318,49 @@ describe("continuações por centro em Dó maior", () => {
   });
 });
 
+describe("o seletor Recomeçar", () => {
+  const roots = [...new Set([...SHARP_ROOTS, ...FLAT_ROOTS])];
+
+  it("cobre as 102 combinações de fundamental e qualidade", () => {
+    expect(roots.length * QUALITY_OPTIONS.length).toBe(102);
+  });
+
+  it("nenhuma combinação abre cromática sem caminho provável", () => {
+    const stuck: string[] = [];
+    for (const root of roots) {
+      for (const quality of QUALITY_OPTIONS) {
+        const key = toPickerKey(inferKey(root, quality.id));
+        const symbol = symbolFrom(spellRootForKey(root, key), quality.id);
+        const analysis = describeChordInKey(symbol, key);
+        const strong = getContinuations(symbol, key).filter((move) => move.strong);
+        if (analysis.group === "chromatic" && strong.length === 0) {
+          stuck.push(`${symbol} em ${key.tonic} ${key.mode} (de ${root} ${quality.id})`);
+        }
+      }
+    }
+    expect(stuck).toEqual([]);
+    console.log(`${roots.length * QUALITY_OPTIONS.length} combinações: nenhuma abre como cromática sem caminho provável`);
+  });
+
+  it("reescreve D♯7 como E♭7 em Lá bemol, e D♭7 no chip de Fá sustenido", () => {
+    const ab = toPickerKey(inferKey("D#", "7"));
+    expect(ab).toEqual({ tonic: "Ab", mode: "major" });
+    expect(symbolFrom(spellRootForKey("D#", ab), "7")).toBe("Eb7");
+    expect(describeChordInKey("Eb7", ab).group).toBe("dominant");
+    expect(getContinuations("Eb7", ab).some((move) => move.strong)).toBe(true);
+
+    const fsharp = toPickerKey(inferKey("Db", "7"));
+    expect(fsharp).toEqual({ tonic: "F#", mode: "major" });
+    expect(symbolFrom(spellRootForKey("Db", fsharp), "7")).toBe("C#7");
+    expect(describeChordInKey("C#7", fsharp).group).not.toBe("chromatic");
+
+    const bmajor = toPickerKey(inferKey("Gb", "7"));
+    expect(bmajor).toEqual({ tonic: "B", mode: "major" });
+    expect(symbolFrom(spellRootForKey("Gb", bmajor), "7")).toBe("F#7");
+    expect(describeChordInKey("F#7", bmajor).group).not.toBe("chromatic");
+  });
+});
+
 describe("o mesmo par grupo+grau no menor", () => {
   it("repete os destinos de Dó maior a partir de cada função", () => {
     const pair = (symbol: string, key: KeyContext) =>
@@ -330,6 +381,8 @@ describe("o mesmo par grupo+grau no menor", () => {
 
   it("trata VII como a mesma coleção de III e o deixa no anel 3", () => {
     expect(familyName("borrowed", "VII")).toBe("Diatônico");
+    expect(functionName("borrowed", "VII")).toBe("Diatônico");
+    expect(functionName("borrowed", "bVII")).toBe("Emprestado");
     expect(familyName("tonic", "III")).toBe("Diatônico");
     expect(byId(getContinuations("Am", Amin), "borrowed-VII").detail).toContain("III");
     const placed = layoutContinuations(getContinuations("Am", Amin), Amin);

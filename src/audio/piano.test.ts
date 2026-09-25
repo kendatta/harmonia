@@ -18,7 +18,8 @@ function envelopeEnd(channel: Float32Array, sampleRate: number): number {
     windows.push(rms);
     if (rms > peak) peak = rms;
   }
-  const threshold = Math.max(0.001, peak * 0.08);
+  // −60 dB under the peak. A release of about a second stays above this and fails the window.
+  const threshold = peak * 10 ** (-60 / 20);
   let last = 0;
   windows.forEach((rms, index) => {
     if (rms >= threshold) last = ((index + 1) * windowSize) / sampleRate;

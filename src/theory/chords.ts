@@ -1,4 +1,5 @@
 import { Chord, Note } from "tonal";
+import { signatureAlteration } from "./layout";
 import type { KeyContext, Mode, Quality } from "./types";
 
 export const SHARP_ROOTS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"] as const;
@@ -98,6 +99,17 @@ export function spellKey(tonic: string, mode: Mode): KeyContext {
 /** Twelve usual keys per mode. Sol♭ and Dó♭ major stay in the catalog, not in this picker. */
 export const PICKER_MAJORS = ["C", "G", "D", "A", "E", "B", "F#", "Db", "Ab", "Eb", "Bb", "F"] as const;
 export const PICKER_MINORS = ["A", "E", "B", "F#", "C#", "G#", "Eb", "Bb", "F", "C", "G", "D"] as const;
+
+/**
+ * Spell the chord root with the key's signature.
+ * D♯7 in Lá♭ maior becomes E♭7; Sol♭7 on the Si maior chip becomes Fá♯7.
+ */
+export function spellRootForKey(root: string, key: KeyContext): string {
+  const alteration = signatureAlteration(key);
+  if (root.includes("#") && alteration < 0) return Note.enharmonic(root);
+  if (root.includes("b") && alteration > 0) return Note.enharmonic(root);
+  return root;
+}
 
 /** Map a catalog key onto a picker chip. Gb major highlights Fá♯; D♯ minor highlights Mi♭. */
 export function toPickerKey(key: KeyContext): KeyContext {

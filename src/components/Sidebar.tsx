@@ -37,6 +37,7 @@ export function Sidebar() {
   const savePreset = useHarmonyStore((state) => state.savePreset);
   const deletePreset = useHarmonyStore((state) => state.deletePreset);
   const loadPreset = useHarmonyStore((state) => state.loadPreset);
+  const storageNotice = useHarmonyStore((state) => state.storageNotice);
   const center = useHarmonyStore((state) => state.center);
   const inspected = useHarmonyStore((state) => state.inspected);
   const progress = useSoundingProgress(sounding);
@@ -118,7 +119,7 @@ export function Sidebar() {
             }
             setName("");
             setError("");
-            setFlash("Progressão salva neste navegador.");
+            setFlash(useHarmonyStore.getState().storageNotice ? "" : "Progressão salva neste navegador.");
           }}
         >
           <Input
@@ -133,7 +134,13 @@ export function Sidebar() {
           </Button>
         </form>
         {error ? <p className="form-error">{error}</p> : null}
-        {flash ? <p className="form-flash">{flash}</p> : null}
+        {storageNotice ? (
+          <p className="form-flash" data-testid="storage-notice">
+            {storageNotice}
+          </p>
+        ) : flash ? (
+          <p className="form-flash">{flash}</p>
+        ) : null}
       </div>
       <footer className="transport" data-testid="transport">
         {hasSteps && current ? (
@@ -148,7 +155,7 @@ export function Sidebar() {
               <span className="now-symbol">{plainSymbol(current.symbol)}</span>
               <span className="dot" style={{ background: groupVar(current.group) }} />
               <span className="now-degree">
-                {displayRoman(current.roman)} · {functionName(current.group)}
+                {displayRoman(current.roman)} · {functionName(current.group, current.roman)}
               </span>
             </div>
             <div className="segments" aria-hidden="true">

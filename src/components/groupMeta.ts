@@ -24,7 +24,8 @@ export function familyName(group: Group | "chromatic", roman?: string): string {
   return "Diatônico";
 }
 
-export function functionName(group: Group | "chromatic"): string {
+export function functionName(group: Group | "chromatic", roman?: string): string {
+  if (roman === "VII") return "Diatônico";
   switch (group) {
     case "tonic":
       return "Tônica";
