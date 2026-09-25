@@ -1,9 +1,11 @@
+import { Note } from "tonal";
 import { describe, expect, it } from "vitest";
 import { familyName, functionName } from "../components/groupMeta";
-import { FLAT_ROOTS, QUALITY_OPTIONS, SHARP_ROOTS, inferKey, spellRootForKey, symbolFrom, toPickerKey } from "./chords";
+import { FLAT_ROOTS, PICKER_MAJORS, PICKER_MINORS, QUALITY_OPTIONS, SHARP_ROOTS, inferKey, notesOfSymbol, pickerKeyForQuality, pickerSuggestion, spellRootForKey, symbolFrom, toPickerKey } from "./chords";
 import { describeChordInKey, getContinuations } from "./continuations";
-import { degreeNumber, layoutContinuations } from "./layout";
-import type { Continuation, KeyContext } from "./types";
+import { degreeNumber, layoutContinuations, signatureAlteration } from "./layout";
+import { keyPhrase } from "./speech";
+import type { Continuation, KeyContext, Mode } from "./types";
 
 function byId(moves: Continuation[], id: string): Continuation {
   const found = moves.find((move) => move.id === id);
@@ -359,6 +361,123 @@ describe("o seletor Recomeçar", () => {
     expect(symbolFrom(spellRootForKey("Gb", bmajor), "7")).toBe("F#7");
     expect(describeChordInKey("F#7", bmajor).group).not.toBe("chromatic");
   });
+
+  it("abre F° como E♯° e nomeia o chip Fá♯, não Sol♭", () => {
+    const key = pickerSuggestion("F", "dim");
+    expect(inferKey("F", "dim")).toEqual({ tonic: "Gb", mode: "major" });
+    expect(key).toEqual({ tonic: "F#", mode: "major" });
+    expect(keyPhrase(key)).toBe("Fá♯ maior");
+    const symbol = symbolFrom(spellRootForKey("F", key), "dim");
+    expect(symbol).toBe("E#dim");
+    expect(notesOfSymbol(symbol)).toEqual(["E#", "G#", "B"]);
+    expect(describeChordInKey(symbol, key).roman).toBe("vii°");
+  });
+
+  it("mantém o chip escolhido à mão quando a qualidade muda", () => {
+    const hand = { tonic: "Eb", mode: "minor" as const };
+    expect(pickerKeyForQuality(true, hand, "B", "maj7")).toEqual(hand);
+    expect(pickerKeyForQuality(false, { tonic: "C", mode: "major" }, "F", "dim")).toEqual({ tonic: "F#", mode: "major" });
+  });
+});
+
+describe("grafia em cada chip de tonalidade", () => {
+  const roots = [...new Set([...SHARP_ROOTS, ...FLAT_ROOTS])];
+  const keys: KeyContext[] = [
+    ...PICKER_MAJORS.map((tonic) => ({ tonic, mode: "major" as const })),
+    ...PICKER_MINORS.map((tonic) => ({ tonic, mode: "minor" as const })),
+  ];
+  const pool = [
+    ...roots,
+    "E#",
+    "B#",
+    "Fb",
+    "Cb",
+    "F##",
+    "C##",
+    "G##",
+    "D##",
+    "A##",
+    "Bbb",
+    "Ebb",
+    "Abb",
+    "Dbb",
+  ];
+
+  function vocabulary(key: KeyContext): string[] {
+    const steps = key.mode === "major" ? ["1P", "2M", "3M", "4P", "5P", "6M", "7M", "3m", "6m", "7m"] : ["1P", "2M", "3m", "4P", "5P", "6m", "7m", "7M"];
+    return steps.map((step) => Note.transpose(key.tonic, step));
+  }
+
+  function coherentRoot(root: string, key: KeyContext): string {
+    const chroma = Note.chroma(root);
+    const match = vocabulary(key).find((note) => Note.chroma(note) === chroma);
+    if (match) return match;
+    const alteration = signatureAlteration(key);
+    if (root.includes("#") && alteration < 0) return Note.enharmonic(root);
+    if (/^[A-G]b/.test(root) && alteration > 0) return Note.enharmonic(root);
+    return root;
+  }
+
+  function pitchClass(notes: string[]): string {
+    return notes.map((note) => String(Note.chroma(note))).join(".");
+  }
+
+  it("varre as 2448 combinações de fundamental, qualidade e chip", () => {
+    expect(roots.length * QUALITY_OPTIONS.length * keys.length).toBe(2448);
+
+    const functional = new Map<string, Set<string>>();
+    for (const key of keys) {
+      const id = `${key.tonic}:${key.mode}`;
+      const pairs = new Set<string>();
+      for (const spelling of pool) {
+        for (const quality of QUALITY_OPTIONS) {
+          const analysis = describeChordInKey(symbolFrom(spelling, quality.id), key);
+          if (analysis.group !== "chromatic") pairs.add(`${Note.chroma(spelling)}:${quality.id}`);
+        }
+      }
+      functional.set(id, pairs);
+      const seen = new Map<number, string>();
+      for (const note of vocabulary(key)) {
+        const chroma = Note.chroma(note);
+        if (chroma === null || chroma === undefined) throw new Error(note);
+        const previous = seen.get(chroma);
+        if (previous && previous !== note) throw new Error(`${id} repete ${chroma}: ${previous} e ${note}`);
+        seen.set(chroma, note);
+      }
+    }
+
+    const problems: string[] = [];
+    for (const root of roots) {
+      for (const quality of QUALITY_OPTIONS) {
+        for (const key of keys) {
+          const spelled = spellRootForKey(root, key);
+          const symbol = symbolFrom(spelled, quality.id);
+          const original = symbolFrom(root, quality.id);
+          const where = `${root} ${quality.id} em ${key.tonic} ${key.mode} → ${symbol}`;
+          if (spelled !== coherentRoot(root, key)) problems.push(`${where}: grafia ${spelled}, esperada ${coherentRoot(root, key)}`);
+          if (pitchClass(notesOfSymbol(symbol)) !== pitchClass(notesOfSymbol(original))) problems.push(`${where}: notas não enarmônicas`);
+          const reading = functional.get(`${key.tonic}:${key.mode}`)?.has(`${Note.chroma(root)}:${quality.id}`);
+          if (reading && describeChordInKey(symbol, key).group === "chromatic") problems.push(`${where}: cromático com leitura funcional`);
+          if (problems.length > 12) break;
+        }
+      }
+    }
+
+    expect(problems).toEqual([]);
+    console.log("2448 combinações: grafia coerente com o chip e leitura funcional quando existe enarmonia");
+  }, 15000);
+
+  it("reescreve Si em Mi bemol menor como Dó bemol, com análise", () => {
+    const minor = { tonic: "Eb", mode: "minor" as Mode };
+    expect(symbolFrom(spellRootForKey("B", minor), "7")).toBe("Cb7");
+    expect(describeChordInKey("Cb7", minor)).toMatchObject({ roman: "VI7" });
+    expect(symbolFrom(spellRootForKey("B", minor), "maj7")).toBe("Cbmaj7");
+    expect(describeChordInKey("Cbmaj7", minor).roman).toBe("VIΔ");
+    expect(symbolFrom(spellRootForKey("B", minor), "maj")).toBe("Cb");
+    expect(symbolFrom(spellRootForKey("Ab", { tonic: "A", mode: "minor" }), "dim")).toBe("G#dim");
+    expect(symbolFrom(spellRootForKey("F", { tonic: "F#", mode: "major" }), "7")).toBe("E#7");
+    expect(describeChordInKey("E#7", { tonic: "F#", mode: "major" }).group).not.toBe("chromatic");
+  });
 });
 
 describe("o mesmo par grupo+grau no menor", () => {
@@ -384,6 +503,9 @@ describe("o mesmo par grupo+grau no menor", () => {
     expect(functionName("borrowed", "VII")).toBe("Diatônico");
     expect(functionName("borrowed", "bVII")).toBe("Emprestado");
     expect(familyName("tonic", "III")).toBe("Diatônico");
+    expect(familyName("borrowed", "v")).toBe("Emprestado");
+    expect(functionName("borrowed", "v")).toBe("Emprestado");
+    expect(byId(getContinuations("Am", Amin), "borrowed-v").detail).toMatch(/emprestado/);
     expect(byId(getContinuations("Am", Amin), "borrowed-VII").detail).toContain("III");
     const placed = layoutContinuations(getContinuations("Am", Amin), Amin);
     expect(placed.find((node) => node.continuation.id === "borrowed-VII")?.ring).toBe(3);

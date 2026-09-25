@@ -100,15 +100,53 @@ export function spellKey(tonic: string, mode: Mode): KeyContext {
 export const PICKER_MAJORS = ["C", "G", "D", "A", "E", "B", "F#", "Db", "Ab", "Eb", "Bb", "F"] as const;
 export const PICKER_MINORS = ["A", "E", "B", "F#", "C#", "G#", "Eb", "Bb", "F", "C", "G", "D"] as const;
 
+const MAJOR_STEPS = ["1P", "2M", "3M", "4P", "5P", "6M", "7M"] as const;
+const NATURAL_MINOR_STEPS = ["1P", "2M", "3m", "4P", "5P", "6m", "7m"] as const;
+/** Major-mode borrowings whose roots are not diatonic: ♭III, ♭VI, ♭VII. */
+const MAJOR_BORROWED_STEPS = ["3m", "6m", "7m"] as const;
+
+function flatAccidental(root: string): boolean {
+  return /^[A-G]b/.test(root);
+}
+
 /**
- * Spell the chord root with the key's signature.
- * D♯7 in Lá♭ maior becomes E♭7; Sol♭7 on the Si maior chip becomes Fá♯7.
+ * Spellings the key already uses for a pitch: the scale (harmonic leading tone
+ * in minor), then major-mode borrowings. First match wins; those sets do not share a pitch class.
+ */
+function preferredSpellings(key: KeyContext): string[] {
+  if (key.mode === "major") {
+    return [
+      ...MAJOR_STEPS.map((step) => Note.transpose(key.tonic, step)),
+      ...MAJOR_BORROWED_STEPS.map((step) => Note.transpose(key.tonic, step)),
+    ];
+  }
+  return [...NATURAL_MINOR_STEPS.map((step) => Note.transpose(key.tonic, step)), Note.transpose(key.tonic, "7M")];
+}
+
+/**
+ * Spell the root as the applied key spells that pitch.
+ * F° on the Fá♯ maior chip becomes E♯°; Si in Mi♭ menor becomes Dó♭.
+ * A pitch with no scale or borrowed degree keeps the signature direction.
  */
 export function spellRootForKey(root: string, key: KeyContext): string {
+  const chroma = Note.chroma(root);
+  if (chroma === undefined || chroma === null) return root;
+  const match = preferredSpellings(key).find((note) => Note.chroma(note) === chroma);
+  if (match) return match;
   const alteration = signatureAlteration(key);
   if (root.includes("#") && alteration < 0) return Note.enharmonic(root);
-  if (root.includes("b") && alteration > 0) return Note.enharmonic(root);
+  if (flatAccidental(root) && alteration > 0) return Note.enharmonic(root);
   return root;
+}
+
+/** The Tonalidade chip inferKey points at. Sol♭ maior is offered as Fá♯. */
+export function pickerSuggestion(root: string, quality: Quality): KeyContext {
+  return toPickerKey(inferKey(root, quality));
+}
+
+/** A chip chosen by hand stays put when only the quality changes. */
+export function pickerKeyForQuality(manual: boolean, selected: KeyContext, root: string, quality: Quality): KeyContext {
+  return manual ? selected : pickerSuggestion(root, quality);
 }
 
 /** Map a catalog key onto a picker chip. Gb major highlights Fá♯; D♯ minor highlights Mi♭. */

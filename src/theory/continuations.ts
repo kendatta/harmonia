@@ -132,8 +132,15 @@ function fieldChords(key: KeyContext): Continuation[] {
   return moves;
 }
 
+const catalogCache = new Map<string, Continuation[]>();
+
 function catalogChords(key: KeyContext): Continuation[] {
-  return [...fieldChords(key), ...pivotMoves(key)];
+  const id = `${key.tonic}:${key.mode}`;
+  const cached = catalogCache.get(id);
+  if (cached) return cached;
+  const built = [...fieldChords(key), ...pivotMoves(key)];
+  catalogCache.set(id, built);
+  return built;
 }
 
 function borrowedSpecs(key: KeyContext): BorrowedSpec[] {
@@ -173,7 +180,7 @@ function borrowedSpecs(key: KeyContext): BorrowedSpec[] {
       interval: "5P",
       quality: "min",
       roman: "v",
-      detail: "v · dominante menor, vinda do modo natural. O tom de referência continua.",
+      detail: "v · emprestado do modo natural, a dominante menor. O tom de referência continua.",
     },
     {
       interval: "7m",

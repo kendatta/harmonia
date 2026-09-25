@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FLAT_ROOTS, PICKER_MAJORS, PICKER_MINORS, QUALITY_OPTIONS, SHARP_ROOTS, inferKey, musicGlyphs, toPickerKey } from "../theory/chords";
+import { FLAT_ROOTS, PICKER_MAJORS, PICKER_MINORS, QUALITY_OPTIONS, SHARP_ROOTS, musicGlyphs, pickerKeyForQuality, pickerSuggestion, toPickerKey } from "../theory/chords";
 import { keyPhrase, solfegePitch } from "../theory/speech";
 import type { KeyContext, Mode, Quality } from "../theory/types";
 import { useHarmonyStore } from "../store/useHarmonyStore";
@@ -11,19 +11,21 @@ export function ChordPicker({ onApplied }: { onApplied?: () => void }) {
   const [root, setRoot] = useState("C");
   const [quality, setQuality] = useState<Quality>("maj");
   const [selected, setSelected] = useState<KeyContext>({ tonic: "C", mode: "major" });
+  const [manualKey, setManualKey] = useState(false);
 
   const roots = spelling === "sharp" ? SHARP_ROOTS : FLAT_ROOTS;
-  const suggestion = inferKey(root, quality);
+  const suggestion = pickerSuggestion(root, quality);
   const tonics = selected.mode === "major" ? PICKER_MAJORS : PICKER_MINORS;
 
   const chooseRoot = (note: string) => {
     setRoot(note);
-    setSelected(toPickerKey(inferKey(note, quality)));
+    setManualKey(false);
+    setSelected(pickerSuggestion(note, quality));
   };
 
   const chooseQuality = (next: Quality) => {
     setQuality(next);
-    setSelected(toPickerKey(inferKey(root, next)));
+    setSelected((current) => pickerKeyForQuality(manualKey, current, root, next));
   };
 
   const chooseMode = (mode: Mode) => {
@@ -116,7 +118,10 @@ export function ChordPicker({ onApplied }: { onApplied?: () => void }) {
                   aria-pressed={active}
                   data-testid="key-chip"
                   data-tonic={tonic}
-                  onClick={() => setSelected({ tonic, mode: selected.mode })}
+                  onClick={() => {
+                    setManualKey(true);
+                    setSelected({ tonic, mode: selected.mode });
+                  }}
                 >
                   {solfegePitch(tonic)}
                 </Button>

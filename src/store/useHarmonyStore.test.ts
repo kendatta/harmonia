@@ -77,6 +77,17 @@ describe("presets no localStorage", () => {
     }
   });
 
+  it("abre F° no chip de Fá sustenido como E♯°", () => {
+    const store = createHarmonyStore();
+    const key = toPickerKey(inferKey("F", "dim"));
+    store.getState().applyStart("F", "dim", key);
+    expect(store.getState().key).toEqual({ tonic: "F#", mode: "major" });
+    expect(store.getState().center.symbol).toBe("E#dim");
+    expect(store.getState().center.notes).toEqual(["E#", "G#", "B"]);
+    expect(store.getState().inspected.roman).toBe("vii°");
+    expect(store.getState().inspected.group).not.toBe("chromatic");
+  });
+
   it("abre D♯7 já reescrito como E♭7", () => {
     const store = createHarmonyStore();
     const key = toPickerKey(inferKey("D#", "7"));
