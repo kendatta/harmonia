@@ -1,5 +1,7 @@
 import { Chord, Note } from "tonal";
-import { keyLabel, notesOfSymbol, sameKey } from "./chords";
+import { keyLabel, notesOfSymbol, sameKey, spellKey } from "./chords";
+import { degreeNumber } from "./layout";
+import { solfegePitch } from "./speech";
 import type { ChordAnalysis, Continuation, Group, KeyContext, PivotKind } from "./types";
 
 const MAJOR_STEPS = ["1P", "2M", "3M", "4P", "5P", "6M", "7M"] as const;
@@ -77,7 +79,7 @@ function diatonicDetail(roman: string, group: Group, key: KeyContext): string {
   return `${roman} em ${place}. Função de dominante: tensão que pede a tônica.`;
 }
 
-function catalogChords(key: KeyContext): Continuation[] {
+function fieldChords(key: KeyContext): Continuation[] {
   const degrees = key.mode === "major" ? MAJOR_DEGREES : MINOR_DEGREES;
   const place = keyLabel(key);
   const moves: Continuation[] = [];
@@ -127,8 +129,11 @@ function catalogChords(key: KeyContext): Continuation[] {
     );
   }
 
-  moves.push(...pivotMoves(key));
   return moves;
+}
+
+function catalogChords(key: KeyContext): Continuation[] {
+  return [...fieldChords(key), ...pivotMoves(key)];
 }
 
 function borrowedSpecs(key: KeyContext): BorrowedSpec[] {
@@ -174,7 +179,7 @@ function borrowedSpecs(key: KeyContext): BorrowedSpec[] {
       interval: "7m",
       quality: "maj",
       roman: "VII",
-      detail: "VII · subtônica do modo natural. O tom de referência continua.",
+      detail: "VII · subtônica do modo natural, a mesma coleção de III. O tom de referência continua.",
     },
     {
       interval: "1P",
@@ -191,156 +196,248 @@ function borrowedSpecs(key: KeyContext): BorrowedSpec[] {
   ];
 }
 
-function pivotMoves(key: KeyContext): Continuation[] {
-  if (key.mode === "major") {
-    const relative = Note.transpose(key.tonic, "-3m");
-    const up = Note.transpose(key.tonic, "5P");
-    const down = Note.transpose(key.tonic, "-5P");
-    return [
-      pivot(key, {
-        id: "pivot-relative",
-        kind: "relative",
-        symbol: `${relative}m`,
-        roman: "vi",
-        detail: `Modulação ao relativo. O vi passa a ser i em ${relative} menor.`,
-        nextKey: { tonic: relative, mode: "minor" },
-      }),
-      pivot(key, {
-        id: "pivot-parallel",
-        kind: "parallel",
-        symbol: `${key.tonic}m`,
-        roman: "i",
-        detail: `Modulação ao paralelo. O centro tonal passa a ${key.tonic} menor.`,
-        nextKey: { tonic: key.tonic, mode: "minor" },
-      }),
-      pivot(key, {
-        id: "pivot-fifth-up",
-        kind: "fifth-up",
-        symbol: up,
-        roman: "V",
-        detail: `Vizinho da quinta acima no ciclo. O V passa a ser I em ${up} maior.`,
-        nextKey: { tonic: up, mode: "major" },
-      }),
-      pivot(key, {
-        id: "pivot-fifth-down",
-        kind: "fifth-down",
-        symbol: down,
-        roman: "IV",
-        detail: `Vizinho da quinta abaixo no ciclo. O IV passa a ser I em ${down} maior.`,
-        nextKey: { tonic: down, mode: "major" },
-      }),
-    ];
+function spellNoteForHome(note: string, home: KeyContext): string {
+  const flatHome = home.tonic.includes("b") || home.tonic === "F";
+  const sharpHome = home.tonic.includes("#");
+  if (flatHome && note.includes("#")) return Note.enharmonic(note);
+  if (sharpHome && note.includes("b")) return Note.enharmonic(note);
+  return note;
+}
+
+function destinationTag(key: KeyContext): string {
+  const name = solfegePitch(key.tonic);
+  return key.mode === "minor" ? `${name} m` : name;
+}
+
+function pitchKey(symbol: string): string {
+  return Chord.get(symbol)
+    .notes.map((note) => String(Note.chroma(note)))
+    .sort()
+    .join(".");
+}
+
+interface CommonChord {
+  symbol: string;
+  oldRoman: string;
+  newRoman: string;
+  oldGroup: Group;
+  newGroup: Group;
+}
+
+function diatonicField(key: KeyContext): Continuation[] {
+  return fieldChords(key).filter((chord) => chord.group === "tonic" || chord.group === "subdominant" || chord.group === "dominant");
+}
+
+/** A chord that already belongs to both keys, excluding the destination tonic. */
+function commonChords(from: KeyContext, to: KeyContext): CommonChord[] {
+  const oldField = diatonicField(from);
+  const newField = diatonicField(to);
+  const destination = newField.find((chord) => chord.roman === "I" || chord.roman === "i");
+  const destinationSet = destination ? pitchKey(destination.symbol) : "";
+  const seen = new Set<string>();
+  const found: CommonChord[] = [];
+  for (const oldChord of oldField) {
+    const set = pitchKey(oldChord.symbol);
+    if (seen.has(set) || set === destinationSet) continue;
+    const arrival = newField.find((chord) => pitchKey(chord.symbol) === set);
+    if (!arrival) continue;
+    seen.add(set);
+    found.push({
+      symbol: oldChord.symbol,
+      oldRoman: oldChord.roman,
+      newRoman: arrival.roman,
+      oldGroup: oldChord.group,
+      newGroup: arrival.group,
+    });
   }
+  return found;
+}
 
-  const relative = Note.transpose(key.tonic, "3m");
-  const up = Note.transpose(key.tonic, "5P");
-  const down = Note.transpose(key.tonic, "-5P");
-  return [
-    pivot(key, {
-      id: "pivot-relative",
-      kind: "relative",
-      symbol: relative,
-      roman: "III",
-      detail: `Modulação ao relativo. O III passa a ser I em ${relative} maior.`,
-      nextKey: { tonic: relative, mode: "major" },
-    }),
-    pivot(key, {
+function commonScore(chord: CommonChord): number {
+  let score = 0;
+  if (chord.oldRoman === "I" || chord.oldRoman === "i") score -= 80;
+  if (chord.newGroup === "subdominant") score += 50;
+  else if (chord.newRoman === "vi" || chord.newRoman === "VI" || chord.newRoman === "iii" || chord.newRoman === "III") score += 20;
+  if (chord.oldGroup === "subdominant") score += 5;
+  if (chord.symbol.includes("dim")) score -= 30;
+  return score;
+}
+
+function pivotMoves(key: KeyContext): Continuation[] {
+  const relative = key.mode === "major" ? spellKey(Note.transpose(key.tonic, "-3m"), "minor") : spellKey(Note.transpose(key.tonic, "3m"), "major");
+  const up = spellKey(Note.transpose(key.tonic, "5P"), key.mode);
+  const down = spellKey(Note.transpose(key.tonic, "-5P"), key.mode);
+  const parallel = spellKey(key.tonic, key.mode === "major" ? "minor" : "major");
+  const used = new Set<string>();
+  const doors: Continuation[] = [];
+
+  const addCommon = (id: string, kind: PivotKind, nextKey: KeyContext) => {
+    const ranked = commonChords(key, nextKey)
+      .map((chord) => ({ chord, score: commonScore(chord) - (used.has(pitchKey(chord.symbol)) ? 100 : 0) }))
+      .sort((a, b) => b.score - a.score);
+    const best = ranked[0]?.chord;
+    if (!best) return;
+    used.add(pitchKey(best.symbol));
+    const place = keyLabel(nextKey);
+    doors.push(
+      makeMove({
+        id,
+        symbol: best.symbol,
+        group: "pivot",
+        roman: best.oldRoman,
+        caption: `${best.oldRoman} = ${best.newRoman} (${destinationTag(nextKey)})`,
+        detail: `${best.oldRoman} aqui é ${best.newRoman} em ${place}. Acorde comum: o som fica, a função muda.`,
+        nextKey,
+        pivotKind: kind,
+      }),
+    );
+  };
+
+  addCommon("pivot-fifth-up", "fifth-up", up);
+  addCommon("pivot-fifth-down", "fifth-down", down);
+  addCommon("pivot-relative", "relative", relative);
+
+  const parallelRoot = spellNoteForHome(parallel.tonic, key);
+  const parallelSymbol = parallel.mode === "minor" ? `${parallelRoot}m` : parallelRoot;
+  doors.push(
+    makeMove({
       id: "pivot-parallel",
-      kind: "parallel",
-      symbol: key.tonic,
-      roman: "I",
-      detail: `Modulação ao paralelo. O centro tonal passa a ${key.tonic} maior.`,
-      nextKey: { tonic: key.tonic, mode: "major" },
+      symbol: parallelSymbol,
+      group: "pivot",
+      roman: parallel.mode === "minor" ? "i" : "I",
+      caption: "mod. direta",
+      detail: `Modulação direta ao ${parallel.mode === "minor" ? "menor" : "maior"} paralelo, por mistura. Não é um acorde comum aos dois campos.`,
+      nextKey: parallel,
+      pivotKind: "parallel",
     }),
-    pivot(key, {
-      id: "pivot-fifth-up",
-      kind: "fifth-up",
-      symbol: `${up}m`,
-      roman: "v",
-      detail: `Vizinho da quinta acima no ciclo. O v passa a ser i em ${up} menor.`,
-      nextKey: { tonic: up, mode: "minor" },
-    }),
-    pivot(key, {
-      id: "pivot-fifth-down",
-      kind: "fifth-down",
-      symbol: `${down}m`,
-      roman: "iv",
-      detail: `Vizinho da quinta abaixo no ciclo. O iv passa a ser i em ${down} menor.`,
-      nextKey: { tonic: down, mode: "minor" },
-    }),
-  ];
+  );
+  return doors;
 }
 
-function pivot(
-  _key: KeyContext,
-  spec: {
-    id: string;
-    kind: PivotKind;
-    symbol: string;
-    roman: string;
-    detail: string;
-    nextKey: KeyContext;
-  },
-): Continuation {
-  return makeMove({
-    id: spec.id,
-    symbol: spec.symbol,
-    group: "pivot",
-    roman: spec.roman,
-    detail: spec.detail,
-    nextKey: spec.nextKey,
-    pivotKind: spec.kind,
-  });
+interface Origin {
+  group: Group | "chromatic";
+  roman: string | null;
+  degree: number | null;
 }
 
-function originOf(symbol: string, catalog: Continuation[]): { group: Group | "chromatic"; roman: string | null } {
-  const stay = catalog.find((chord) => chord.symbol === symbol && !chord.pivotKind);
-  if (stay) return { group: stay.group, roman: stay.roman };
+function originOf(symbol: string, catalog: Continuation[]): Origin {
+  const set = pitchKey(symbol);
+  const stay =
+    catalog.find((chord) => chord.symbol === symbol && !chord.pivotKind) ??
+    catalog.find((chord) => !chord.pivotKind && pitchKey(chord.symbol) === set);
+  if (stay) return { group: stay.group, roman: stay.roman, degree: degreeNumber(stay.roman) };
 
   const parsed = Chord.get(symbol);
   if (!parsed.empty && parsed.tonic && (parsed.type === "dominant seventh" || parsed.type === "major seventh" || parsed.type === "minor seventh")) {
     const triadSymbol =
       parsed.quality === "Minor" ? `${parsed.tonic}m` : parsed.quality === "Diminished" ? `${parsed.tonic}dim` : parsed.tonic;
     const triad = catalog.find((chord) => chord.symbol === triadSymbol && !chord.pivotKind);
-    if (triad) return { group: triad.group, roman: triad.roman };
+    if (triad) return { group: triad.group, roman: triad.roman, degree: degreeNumber(triad.roman) };
   }
-  return { group: "chromatic", roman: null };
+  return { group: "chromatic", roman: null, degree: null };
 }
 
-function strongRomans(group: Group | "chromatic", centerRoman: string | null): Set<string> {
-  if (group === "dominant") return new Set(["I", "i", "vi", "VI"]);
-  if (group === "subdominant") return new Set(["V", "I", "i", "vii°"]);
-  if (group === "secondary") {
-    const target = centerRoman?.split("/")[1];
-    const romans = new Set(["I", "i", "V"]);
-    if (target) romans.add(target);
-    return romans;
-  }
-  return new Set(["ii", "ii°", "IV", "iv", "V", "vi", "VI", "VII"]);
+interface Slot {
+  degree: number;
+  group: "tonic" | "subdominant" | "dominant" | "borrowed";
 }
 
-const STRONG_APPLIED = new Set(["V7/V", "V7/ii", "V7/vi", "V7/iv", "V7/VI"]);
+/** Likely next chords, keyed by origin group and scale degree — not by the roman spelling. */
+const NEXT_BY_FUNCTION: Record<string, Slot[]> = {
+  "tonic:1": [
+    { degree: 4, group: "subdominant" },
+    { degree: 5, group: "dominant" },
+    { degree: 6, group: "tonic" },
+    { degree: 2, group: "subdominant" },
+  ],
+  "subdominant:2": [
+    { degree: 5, group: "dominant" },
+    { degree: 7, group: "dominant" },
+  ],
+  "tonic:3": [
+    { degree: 6, group: "tonic" },
+    { degree: 4, group: "subdominant" },
+  ],
+  "subdominant:4": [
+    { degree: 5, group: "dominant" },
+    { degree: 1, group: "tonic" },
+    { degree: 2, group: "subdominant" },
+    { degree: 4, group: "borrowed" },
+  ],
+  "dominant:5": [
+    { degree: 1, group: "tonic" },
+    { degree: 6, group: "tonic" },
+  ],
+  "tonic:6": [
+    { degree: 2, group: "subdominant" },
+    { degree: 4, group: "subdominant" },
+    { degree: 5, group: "dominant" },
+  ],
+  "dominant:7": [{ degree: 1, group: "tonic" }],
+  "borrowed:4": [
+    { degree: 1, group: "tonic" },
+    { degree: 5, group: "dominant" },
+  ],
+  "borrowed:7": [{ degree: 1, group: "tonic" }],
+  "borrowed:6": [
+    { degree: 7, group: "borrowed" },
+    { degree: 5, group: "dominant" },
+    { degree: 1, group: "tonic" },
+  ],
+  "borrowed:3": [
+    { degree: 4, group: "borrowed" },
+    { degree: 6, group: "borrowed" },
+    { degree: 7, group: "borrowed" },
+  ],
+};
+
+function degreeUp(degree: number, steps: number): number {
+  return ((degree - 1 + steps) % 7) + 1;
+}
+
+function diatonicSlot(key: KeyContext, degree: number): Slot {
+  const specs = key.mode === "major" ? MAJOR_DEGREES : MINOR_DEGREES;
+  const spec = specs.find((item) => item.index === degree - 1);
+  return { degree, group: spec?.group ?? "tonic" };
+}
+
+function slotsFor(origin: Origin, key: KeyContext): Slot[] {
+  if (origin.group === "secondary" && origin.degree) {
+    return [diatonicSlot(key, origin.degree), diatonicSlot(key, degreeUp(origin.degree, 5))];
+  }
+  if (!origin.degree || origin.group === "chromatic" || origin.group === "pivot") return [];
+  return NEXT_BY_FUNCTION[`${origin.group}:${origin.degree}`] ?? [];
+}
+
+function matchesSlot(move: Continuation, slot: Slot): boolean {
+  if (move.pivotKind) return false;
+  return move.group === slot.group && degreeNumber(move.roman) === slot.degree;
+}
 
 export function getContinuations(centerSymbol: string, key: KeyContext): Continuation[] {
   const catalog = catalogChords(key);
-  const origin = originOf(centerSymbol, catalog);
-  const wanted = strongRomans(origin.group, origin.roman);
+  const slots = slotsFor(originOf(centerSymbol, catalog), key);
 
   return catalog
     .filter((move) => !(move.symbol === centerSymbol && sameKey(move.nextKey, key)))
     .map((move) => ({
       ...move,
-      strong:
-        wanted.has(move.roman) ||
-        move.pivotKind === "relative" ||
-        move.pivotKind === "fifth-up" ||
-        (move.group === "secondary" && STRONG_APPLIED.has(move.roman)),
+      strong: slots.some((slot) => matchesSlot(move, slot)),
     }));
+}
+
+export function symbolInKey(symbol: string, key: KeyContext): string {
+  const catalog = fieldChords(key);
+  const set = pitchKey(symbol);
+  return catalog.find((chord) => pitchKey(chord.symbol) === set)?.symbol ?? symbol;
 }
 
 export function describeChordInKey(symbol: string, key: KeyContext): ChordAnalysis {
   const catalog = catalogChords(key);
-  const stay = catalog.find((chord) => chord.symbol === symbol && !chord.pivotKind);
+  const set = pitchKey(symbol);
+  const stay =
+    catalog.find((chord) => chord.symbol === symbol && !chord.pivotKind) ??
+    catalog.find((chord) => !chord.pivotKind && pitchKey(chord.symbol) === set);
   if (stay) return { roman: stay.roman, group: stay.group, detail: stay.detail };
 
   const parsed = Chord.get(symbol);

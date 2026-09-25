@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { playChord, silence } from "../audio/piano";
-import { describeChordInKey } from "../theory/continuations";
-import { notesOfSymbol, symbolFrom } from "../theory/chords";
+import { describeChordInKey, symbolInKey } from "../theory/continuations";
+import { notesOfSymbol, sameKey, symbolFrom } from "../theory/chords";
 import type { Continuation, Group, KeyContext, Quality } from "../theory/types";
 
 export interface HarmonyChord {
@@ -75,13 +75,11 @@ interface HarmonyState {
   setTransitionFrom: (from: TransitionFrom | null) => void;
 }
 
-const STORAGE_KEY = "navegador-harmonico.presets.v1";
+export const STORAGE_KEY = "navegador-harmonico.presets.v1";
 const CLICK_MS = 3000;
 
 const initialKey: KeyContext = { tonic: "C", mode: "major" };
 const initialChord = chordOf("C");
-
-let attackToken = 0;
 
 function chordOf(symbol: string): HarmonyChord {
   return { symbol, notes: notesOfSymbol(symbol) };
@@ -146,17 +144,17 @@ function clampRate(rate: number): number {
   return Math.min(2, Math.max(0.5, stepped));
 }
 
-export const useHarmonyStore = create<HarmonyState>((set, get) => {
+export function createHarmonyStore() {
+  return create<HarmonyState>((set, get) => {
   const initialStep = stepFrom(initialChord.symbol, initialKey);
 
   const attack = (notes: string[], durationMs = CLICK_MS) => {
-    const token = ++attackToken;
     void playChord(notes, durationMs / 1000)
-      .catch(() => undefined)
-      .finally(() => {
-        if (token !== attackToken) return;
+      .then((played) => {
+        if (!played) return;
         set({ sounding: { startedAt: performance.now(), durationMs } });
-      });
+      })
+      .catch(() => undefined);
   };
 
   const selectedSteps = (): ProgressionStep[] => {
@@ -169,7 +167,6 @@ export const useHarmonyStore = create<HarmonyState>((set, get) => {
   };
 
   const killTransport = () => {
-    attackToken += 1;
     silence();
     set((state) => ({
       playGen: state.playGen + 1,
@@ -185,7 +182,6 @@ export const useHarmonyStore = create<HarmonyState>((set, get) => {
   const runPlayback = async (steps: ProgressionStep[], presetId: string | null) => {
     if (steps.length === 0) return;
     silence();
-    attackToken += 1;
     const gen = get().playGen + 1;
     set({
       playGen: gen,
@@ -197,14 +193,18 @@ export const useHarmonyStore = create<HarmonyState>((set, get) => {
       sounding: null,
     });
 
+    let carryRatio = 0;
+    let chordSeconds = 3;
     for (let index = 0; index < steps.length; ) {
       if (get().playGen !== gen) return;
       while (get().paused && get().playGen === gen) await sleep(40);
       if (get().playGen !== gen) return;
       const step = steps[index];
       if (!step) return;
-      const seconds = 3 / get().playbackRate;
-      const durationMs = seconds * 1000;
+      if (carryRatio === 0) chordSeconds = 3 / get().playbackRate;
+      const seconds = Math.max(0.05, chordSeconds * (1 - carryRatio));
+      const durationMs = chordSeconds * 1000;
+      const offsetMs = carryRatio * durationMs;
       set({ playIndex: index, playbackStep: step, playingPresetId: presetId });
       try {
         await playChord(step.notes, seconds);
@@ -212,15 +212,18 @@ export const useHarmonyStore = create<HarmonyState>((set, get) => {
         // Audio may be blocked; the score still advances.
       }
       if (get().playGen !== gen) return;
-      const startedAt = performance.now();
+      const startedAt = performance.now() - offsetMs;
       set({ sounding: { startedAt, durationMs } });
       let pausedMidway = false;
       while (performance.now() - startedAt < durationMs) {
         if (get().playGen !== gen) return;
-        if (get().paused) {
+        const marked = get().sounding?.frozen;
+        if (get().paused || marked !== undefined) {
+          const frozen = marked ?? Math.min(1, Math.max(carryRatio, (performance.now() - startedAt) / durationMs));
           silence();
-          const frozen = Math.min(1, (performance.now() - startedAt) / durationMs);
           set({ sounding: { startedAt, durationMs, frozen } });
+          carryRatio = frozen;
+          while (get().paused && get().playGen === gen) await sleep(40);
           pausedMidway = true;
           break;
         }
@@ -228,6 +231,7 @@ export const useHarmonyStore = create<HarmonyState>((set, get) => {
       }
       if (get().playGen !== gen) return;
       if (pausedMidway) continue;
+      carryRatio = 0;
       index += 1;
     }
 
@@ -241,6 +245,8 @@ export const useHarmonyStore = create<HarmonyState>((set, get) => {
       playbackStep: null,
       sounding: null,
       inspected: last ?? get().inspected,
+      center: last ? { symbol: last.symbol, notes: last.notes } : get().center,
+      key: last?.key ?? get().key,
     });
   };
 
@@ -280,13 +286,16 @@ export const useHarmonyStore = create<HarmonyState>((set, get) => {
 
     chooseContinuation: (move) => {
       killTransport();
-      const center = chordOf(move.symbol);
+      const keyChanged = !sameKey(move.nextKey, get().key);
+      const symbol = keyChanged ? symbolInKey(move.symbol, move.nextKey) : move.symbol;
+      const center = chordOf(symbol);
+      const arrival = keyChanged ? describeChordInKey(symbol, move.nextKey) : null;
       const step: ProgressionStep = {
         symbol: center.symbol,
         notes: center.notes,
-        roman: move.roman,
-        group: move.group,
-        detail: move.detail,
+        roman: arrival?.roman ?? move.roman,
+        group: arrival?.group ?? move.group,
+        detail: arrival?.detail ?? move.detail,
         key: move.nextKey,
       };
       set((state) => ({
@@ -372,7 +381,6 @@ export const useHarmonyStore = create<HarmonyState>((set, get) => {
     selectPreset: (id) => {
       if (get().isPlaying) return;
       if (get().paused) {
-        attackToken += 1;
         silence();
         set((state) => ({ playGen: state.playGen + 1 }));
       }
@@ -392,7 +400,7 @@ export const useHarmonyStore = create<HarmonyState>((set, get) => {
         return;
       }
       if (get().paused) {
-        set({ paused: false, isPlaying: true, sounding: null });
+        set({ paused: false, isPlaying: true });
         return;
       }
       const steps = selectedSteps();
@@ -400,7 +408,6 @@ export const useHarmonyStore = create<HarmonyState>((set, get) => {
     },
 
     stopPlayback: () => {
-      attackToken += 1;
       silence();
       set((state) => ({
         playGen: state.playGen + 1,
@@ -417,4 +424,7 @@ export const useHarmonyStore = create<HarmonyState>((set, get) => {
 
     setTransitionFrom: (from) => set({ transitionFrom: from }),
   };
-});
+  });
+}
+
+export const useHarmonyStore = createHarmonyStore();

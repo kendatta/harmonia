@@ -1,8 +1,32 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Navigator } from "./components/Navigator";
 import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
 import { useHarmonyStore } from "./store/useHarmonyStore";
+
+function AuditClock() {
+  const enabled = new URLSearchParams(window.location.search).get("audit") === "1";
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const origin = performance.now();
+    let frame = 0;
+    const tick = () => {
+      setSeconds((performance.now() - origin) / 1000);
+      frame = window.requestAnimationFrame(tick);
+    };
+    frame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frame);
+  }, [enabled]);
+
+  if (!enabled) return null;
+  return (
+    <div className="audit-clock" data-testid="audit-clock">
+      {seconds.toFixed(2)}s
+    </div>
+  );
+}
 
 export default function App() {
   const back = useHarmonyStore((state) => state.back);
@@ -28,6 +52,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      <AuditClock />
       <TopBar />
       <main className="workspace">
         <Navigator />

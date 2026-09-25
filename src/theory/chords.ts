@@ -83,14 +83,29 @@ export function sameKey(a: KeyContext, b: KeyContext): boolean {
   return a.tonic === b.tonic && a.mode === b.mode;
 }
 
+const MAJOR_TONICS = new Set(["C", "G", "D", "A", "E", "B", "F#", "C#", "F", "Bb", "Eb", "Ab", "Db", "Gb", "Cb"]);
+const MINOR_TONICS = new Set(["A", "E", "B", "F#", "C#", "G#", "D#", "D", "G", "C", "F", "Bb", "Eb", "Ab"]);
+
+/** Prefer a common key spelling. D#7 resolves to Ab major; Fb major becomes E major. Cb stays Cb. */
+export function spellKey(tonic: string, mode: Mode): KeyContext {
+  const allowed = mode === "major" ? MAJOR_TONICS : MINOR_TONICS;
+  if (allowed.has(tonic)) return { tonic, mode };
+  const other = Note.enharmonic(tonic);
+  if (allowed.has(other)) return { tonic: other, mode };
+  return { tonic, mode };
+}
+
 export function inferKey(root: string, quality: Quality): KeyContext {
-  if (quality === "min" || quality === "m7" || quality === "dim") {
-    return { tonic: root, mode: "minor" };
+  if (quality === "dim") {
+    return spellKey(Note.transpose(root, "2m"), "major");
+  }
+  if (quality === "min" || quality === "m7") {
+    return spellKey(root, "minor");
   }
   if (quality === "7") {
-    return { tonic: Note.transpose(root, "-5P"), mode: "major" };
+    return spellKey(Note.transpose(root, "-5P"), "major");
   }
-  return { tonic: root, mode: "major" };
+  return spellKey(root, "major");
 }
 
 export function formatNotes(notes: string[]): string {

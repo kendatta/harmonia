@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, animate, motion, useIsPresent, useReducedMotion } from "motion/react";
-import { displayRoman } from "../theory/chords";
+import { displayRoman, musicGlyphs } from "../theory/chords";
 import { describeChordInKey, getContinuations } from "../theory/continuations";
 import {
   CENTER_EASE,
@@ -244,7 +244,7 @@ function OrbitNode({
   return (
     <motion.g
       initial={origin === "inward" && !reduced ? { opacity: 0 } : false}
-      animate={{ opacity: locked ? 0.4 : 1 }}
+      animate={{ opacity: locked ? 0.4 : emphasized ? 1 : 0.42 }}
       exit={{ opacity: 0, transition: { duration: exitInstant || reduced ? 0.12 : 0.16 } }}
       transition={{
         duration: reduced ? 0.12 : origin === "inward" ? Math.max(0.08, 0.45 - delay) : 0.2,
@@ -602,7 +602,7 @@ export function Navigator() {
               fillOpacity={isPlaying ? 0.4 : 1}
               data-pivot-label={node.continuation.id}
             >
-              {pivotLabel(node.continuation.nextKey)}
+              {musicGlyphs(node.continuation.caption || pivotLabel(node.continuation.nextKey))}
             </text>
           ))}
         <g className="legend" transform="translate(16 700)">

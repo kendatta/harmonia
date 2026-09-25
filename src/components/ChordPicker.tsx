@@ -6,10 +6,12 @@ import { useHarmonyStore } from "../store/useHarmonyStore";
 import { Button } from "./ui/button";
 
 const MAJORS = ["C", "G", "D", "A", "E", "B", "F#", "Db", "Ab", "Eb", "Bb", "F"] as const;
+const EXTRA_MAJORS = ["Gb", "Cb"] as const;
 const MINORS = ["A", "E", "B", "F#", "C#", "G#", "D#", "Bb", "F", "C", "G", "D"] as const;
 
 const KEY_OPTIONS: KeyContext[] = [
   ...MAJORS.map((tonic) => ({ tonic, mode: "major" as const })),
+  ...EXTRA_MAJORS.map((tonic) => ({ tonic, mode: "major" as const })),
   ...MINORS.map((tonic) => ({ tonic, mode: "minor" as const })),
 ];
 
@@ -46,7 +48,7 @@ export function ChordPicker({ onApplied }: { onApplied?: () => void }) {
 
       <fieldset>
         <legend>Fundamental</legend>
-        <div className="segment">
+        <div className="spelling-toggle">
           <Button type="button" size="sm" variant={spelling === "sharp" ? "subtle" : "ghost"} aria-pressed={spelling === "sharp"} onClick={() => setSpelling("sharp")}>
             Sustenidos
           </Button>

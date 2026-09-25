@@ -26,7 +26,9 @@ export interface Continuation {
   detail: string;
   nextKey: KeyContext;
   pivotKind?: PivotKind;
-  /** A likely next step from the current chord, drawn a little stronger. */
+  /** Dual function or direct-modulation caption, so a repeated symbol is explicit. */
+  caption?: string;
+  /** A likely next step from the current chord, drawn with the full stroke. */
   strong: boolean;
 }
 

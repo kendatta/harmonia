@@ -35,11 +35,29 @@ const SALAMANDER: Record<string, string> = {
   A7: "A7.mp3",
 };
 
+/** Release tail on both the sampler and the synth. The hold is shortened by this much. */
+export const RELEASE_SECONDS = 0.08;
+
+export const SYNTH_OPTIONS = {
+  oscillator: { type: "triangle" as const },
+  envelope: { attack: 0.015, decay: 0.28, sustain: 0.22, release: RELEASE_SECONDS },
+};
+
+/** `triggerAttackRelease` holds, then releases. The sum is the audible window. */
+export function holdSeconds(audibleSeconds: number): number {
+  return Math.max(0.05, audibleSeconds - RELEASE_SECONDS);
+}
+
 type Player = {
   triggerAttackRelease: (notes: string[], duration: number, time?: number) => void;
   triggerRelease?: (notes: string[], time?: number) => void;
   releaseAll?: (time?: number) => void;
 };
+
+function preferSynth(): boolean {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("synth") === "1";
+}
 
 let output: Tone.Volume | null = null;
 let sampler: Tone.Sampler | null = null;
@@ -47,6 +65,7 @@ let synth: Tone.PolySynth | null = null;
 let engine: Engine = "idle";
 let samplerReady: Promise<boolean> | null = null;
 let held: string[] = [];
+let request = 0;
 const listeners = new Set<(next: Engine) => void>();
 
 function emit(next: Engine) {
@@ -75,10 +94,7 @@ async function ensure(): Promise<void> {
   await Tone.start();
   if (!output) output = new Tone.Volume(-6).toDestination();
   if (!synth) {
-    synth = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: "triangle" },
-      envelope: { attack: 0.015, decay: 0.28, sustain: 0.22, release: 1.15 },
-    });
+    synth = new Tone.PolySynth(Tone.Synth, SYNTH_OPTIONS);
     synth.connect(output);
   }
   if (sampler || samplerReady) return;
@@ -98,7 +114,7 @@ async function ensure(): Promise<void> {
     const instance = new Tone.Sampler({
       urls: SALAMANDER,
       baseUrl: "https://tonejs.github.io/audio/salamander/",
-      release: 0.08,
+      release: RELEASE_SECONDS,
       onload: () => finish(true),
       onerror: () => finish(false),
     });
@@ -108,25 +124,23 @@ async function ensure(): Promise<void> {
   });
 }
 
-export async function playChord(pitchClasses: string[], seconds: number): Promise<void> {
+export async function playChord(pitchClasses: string[], seconds: number): Promise<boolean> {
+  const mine = ++request;
   await ensure();
-  if (engine !== "sampler") {
-    await Promise.race([
-      samplerReady ?? Promise.resolve(false),
-      new Promise((resolve) => window.setTimeout(resolve, 900)),
-    ]);
-  }
+  if (mine !== request) return false;
 
   const notes = voiceChord(pitchClasses);
-  const player: Player | null = sampler?.loaded ? sampler : synth;
-  if (!player) return;
+  const player: Player | null = !preferSynth() && sampler?.loaded ? sampler : synth;
+  if (!player) return false;
   const now = Tone.now();
   releaseHeld(now);
-  player.triggerAttackRelease(notes, Math.max(0.2, seconds), now);
+  player.triggerAttackRelease(notes, holdSeconds(seconds), now);
   held = notes;
+  return true;
 }
 
 export function silence(): void {
+  request += 1;
   if (!output) return;
   releaseHeld(Tone.now());
 }

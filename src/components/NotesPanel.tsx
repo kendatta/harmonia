@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { displayRoman, musicGlyphs } from "../theory/chords";
 import { describeChordInKey } from "../theory/continuations";
-import { intervalLabel, solfegePitch, spokenChord } from "../theory/speech";
+import { intervalLabel, keyPhrase, solfegePitch, spokenChord } from "../theory/speech";
 import { useHarmonyStore } from "../store/useHarmonyStore";
 import { ChordSymbol } from "./ChordSymbol";
 import { familyName, groupVar } from "./groupMeta";
@@ -41,7 +41,7 @@ export function NotesPanel() {
           <p className="notes-context">
             <span className="dot" style={{ background: color }} />
             <span>
-              {familyName(shown.group)} · {displayRoman(shown.roman)}
+              {familyName(shown.group, shown.roman)} · {displayRoman(shown.roman)} · {keyPhrase(shown.key)}
             </span>
           </p>
           <p className="notes-spoken">{spokenChord(shown.symbol)}</p>

@@ -15,7 +15,8 @@ export function groupVar(group: Group | "chromatic"): string {
   }
 }
 
-export function familyName(group: Group | "chromatic"): string {
+export function familyName(group: Group | "chromatic", roman?: string): string {
+  if (roman === "VII") return "Diatônico";
   if (group === "secondary") return "Dom. secundária";
   if (group === "borrowed") return "Emprestado";
   if (group === "pivot") return "Pivô";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayRoman, displaySymbol, formatNotes, inferKey, keyboardStart, musicGlyphs, notesOf, voiceChord, voicedMidis } from "./chords";
+import { displayRoman, displaySymbol, formatNotes, inferKey, keyboardStart, musicGlyphs, notesOf, spellKey, voiceChord, voicedMidis } from "./chords";
 
 describe("notas dos acordes", () => {
   it("soletra a tríade maior de C", () => {
@@ -42,6 +42,13 @@ describe("tom sugerido", () => {
 
   it("lê Bb7 como dominante de Eb maior", () => {
     expect(inferKey("Bb", "7")).toEqual({ tonic: "Eb", mode: "major" });
+  });
+
+  it("lê Bdim como vii° de Dó maior, e D#7 como dominante de Lá bemol", () => {
+    expect(inferKey("B", "dim")).toEqual({ tonic: "C", mode: "major" });
+    expect(inferKey("D#", "7")).toEqual({ tonic: "Ab", mode: "major" });
+    expect(spellKey("Fb", "major")).toEqual({ tonic: "E", mode: "major" });
+    expect(spellKey("Cb", "major")).toEqual({ tonic: "Cb", mode: "major" });
   });
 });
 

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { familyName } from "../components/groupMeta";
 import { describeChordInKey, getContinuations } from "./continuations";
+import { degreeNumber, layoutContinuations } from "./layout";
 import type { Continuation, KeyContext } from "./types";
 
 function byId(moves: Continuation[], id: string): Continuation {
@@ -49,26 +51,26 @@ describe("continuações em C maior", () => {
     expect(byId(moves, "borrowed-bVII")).toMatchObject({ symbol: "Bb" });
   });
 
-  it("abre portas para relativo, paralelo e vizinhos de quinta", () => {
-    expect(byId(moves, "pivot-relative")).toMatchObject({
+  it("abre portas por acorde comum, e marca o paralelo como modulação direta", () => {
+    expect(byId(moves, "pivot-fifth-up")).toMatchObject({
       symbol: "Am",
-      roman: "vi",
+      caption: "vi = ii (Sol)",
+      nextKey: { tonic: "G", mode: "major" },
+    });
+    expect(byId(moves, "pivot-fifth-down")).toMatchObject({
+      symbol: "Dm",
+      caption: "ii = vi (Fá)",
+      nextKey: { tonic: "F", mode: "major" },
+    });
+    expect(byId(moves, "pivot-relative")).toMatchObject({
+      symbol: "F",
+      caption: "IV = VI (Lá m)",
       nextKey: { tonic: "A", mode: "minor" },
     });
     expect(byId(moves, "pivot-parallel")).toMatchObject({
       symbol: "Cm",
-      roman: "i",
+      caption: "mod. direta",
       nextKey: { tonic: "C", mode: "minor" },
-    });
-    expect(byId(moves, "pivot-fifth-up")).toMatchObject({
-      symbol: "G",
-      roman: "V",
-      nextKey: { tonic: "G", mode: "major" },
-    });
-    expect(byId(moves, "pivot-fifth-down")).toMatchObject({
-      symbol: "F",
-      roman: "IV",
-      nextKey: { tonic: "F", mode: "major" },
     });
   });
 
@@ -116,17 +118,23 @@ describe("A menor", () => {
     expect(byId(moves, "borrowed-IV")).toMatchObject({ symbol: "D" });
   });
 
-  it("modula para o relativo maior e para os vizinhos menores", () => {
-    expect(byId(moves, "pivot-relative").nextKey).toEqual({ tonic: "C", mode: "major" });
-    expect(byId(moves, "pivot-parallel").nextKey).toEqual({ tonic: "A", mode: "major" });
+  it("modula por acorde comum, sem repetir a tônica de destino", () => {
+    expect(byId(moves, "pivot-relative")).toMatchObject({
+      symbol: "Dm",
+      caption: "iv = ii (Dó)",
+      nextKey: { tonic: "C", mode: "major" },
+    });
+    expect(byId(moves, "pivot-parallel")).toMatchObject({
+      symbol: "A",
+      caption: "mod. direta",
+      nextKey: { tonic: "A", mode: "major" },
+    });
     expect(byId(moves, "pivot-fifth-up")).toMatchObject({
-      symbol: "Em",
+      symbol: "C",
       nextKey: { tonic: "E", mode: "minor" },
     });
-    expect(byId(moves, "pivot-fifth-down")).toMatchObject({
-      symbol: "Dm",
-      nextKey: { tonic: "D", mode: "minor" },
-    });
+    expect(byId(moves, "pivot-fifth-down").nextKey).toEqual({ tonic: "D", mode: "minor" });
+    expect(byId(moves, "pivot-fifth-down").symbol).not.toBe("Dm");
   });
 });
 
@@ -145,17 +153,19 @@ describe("F# maior", () => {
     });
   });
 
-  it("aponta o relativo, o paralelo e as quintas vizinhas", () => {
-    expect(byId(moves, "pivot-relative")).toMatchObject({
-      symbol: "D#m",
-      nextKey: { tonic: "D#", mode: "minor" },
-    });
+  it("aponta o relativo, o paralelo e as quintas vizinhas por acorde comum", () => {
+    expect(byId(moves, "pivot-relative").nextKey).toEqual({ tonic: "D#", mode: "minor" });
+    expect(byId(moves, "pivot-relative").symbol).not.toBe("D#m");
+    expect(byId(moves, "pivot-relative").caption).toContain("=");
     expect(byId(moves, "pivot-parallel")).toMatchObject({
       symbol: "F#m",
+      caption: "mod. direta",
       nextKey: { tonic: "F#", mode: "minor" },
     });
     expect(byId(moves, "pivot-fifth-up").nextKey).toEqual({ tonic: "C#", mode: "major" });
+    expect(byId(moves, "pivot-fifth-up").symbol).not.toBe("C#");
     expect(byId(moves, "pivot-fifth-down").nextKey).toEqual({ tonic: "B", mode: "major" });
+    expect(byId(moves, "pivot-fifth-down").symbol).not.toBe("B");
   });
 
   it("empresta do menor paralelo sem confundir com o campo maior", () => {
@@ -175,7 +185,9 @@ describe("Bb maior e Db maior", () => {
     expect(byId(moves, "secondary-V7/V").symbol).toBe("C7");
     expect(byId(moves, "borrowed-bVI").symbol).toBe("Gb");
     expect(byId(moves, "pivot-fifth-down").nextKey).toEqual({ tonic: "Eb", mode: "major" });
+    expect(byId(moves, "pivot-fifth-down").symbol).not.toBe("Eb");
     expect(byId(moves, "pivot-relative").nextKey).toEqual({ tonic: "G", mode: "minor" });
+    expect(byId(moves, "pivot-relative").symbol).not.toBe("Gm");
   });
 
   it("não troca Db maior por sustenidos enarmônicos", () => {
@@ -216,7 +228,7 @@ describe("identidade e análise", () => {
     expect(fromG).not.toEqual(fromEb);
     expect(fromG).toContain("diatonic-I");
     expect(fromEb).not.toContain("diatonic-I");
-    expect(fromEb).toContain("diatonic-ii");
+    expect(fromEb).toEqual(["borrowed-bVI", "borrowed-bVII", "borrowed-iv"]);
     expect(fromG).not.toContain("diatonic-ii");
   });
 
@@ -225,5 +237,178 @@ describe("identidade e análise", () => {
     expect(describeChordInKey("Cmaj7", Cmaj)).toMatchObject({ roman: "IΔ", group: "tonic" });
     expect(describeChordInKey("F#", Fsharp).roman).toBe("I");
     expect(describeChordInKey("Cm", Cmaj)).toMatchObject({ roman: "i", group: "pivot" });
+    expect(describeChordInKey("Am", { tonic: "G", mode: "major" })).toMatchObject({ roman: "ii", group: "subdominant" });
+  });
+});
+
+function strongSymbols(symbol: string, key: KeyContext = Cmaj): string[] {
+  return getContinuations(symbol, key)
+    .filter((move) => move.strong)
+    .map((move) => move.symbol)
+    .sort();
+}
+
+describe("continuações por centro em Dó maior", () => {
+  it("I vai a IV, V, vi e ii", () => {
+    expect(strongSymbols("C")).toEqual(["Am", "Dm", "F", "G"]);
+  });
+
+  it("ii vai a V e vii°", () => {
+    expect(strongSymbols("Dm")).toEqual(["Bdim", "G"]);
+  });
+
+  it("iii vai a vi e IV", () => {
+    expect(strongSymbols("Em")).toEqual(["Am", "F"]);
+  });
+
+  it("IV vai a V, I, ii e iv", () => {
+    expect(strongSymbols("F")).toEqual(["C", "Dm", "Fm", "G"]);
+  });
+
+  it("V e V7 vão a I e vi", () => {
+    expect(strongSymbols("G")).toEqual(["Am", "C"]);
+    expect(strongSymbols("G7")).toEqual(["Am", "C"]);
+  });
+
+  it("vi vai a ii, IV e V", () => {
+    expect(strongSymbols("Am")).toEqual(["Dm", "F", "G"]);
+  });
+
+  it("vii° vai a I", () => {
+    expect(strongSymbols("Bdim")).toEqual(["C"]);
+  });
+
+  it("V7/V vai ao V e à resolução enganosa", () => {
+    expect(strongSymbols("D7")).toEqual(["Em", "G"]);
+    expect(getContinuations("D7", Cmaj).find((move) => move.symbol === "A7")?.strong).toBe(false);
+  });
+
+  it("iv vai a I e V", () => {
+    expect(strongSymbols("Fm")).toEqual(["C", "G"]);
+  });
+
+  it("bVII vai a I", () => {
+    expect(strongSymbols("Bb")).toEqual(["C"]);
+  });
+
+  it("bVI vai a bVII, V e I", () => {
+    expect(strongSymbols("Ab")).toEqual(["Bb", "C", "G"]);
+  });
+
+  it("bIII vai a iv, bVI e bVII", () => {
+    expect(strongSymbols("Eb")).toEqual(["Ab", "Bb", "Fm"]);
+  });
+
+  it("Dó, Mi menor e Mi bemol produzem conjuntos diferentes", () => {
+    const fromC = strongSymbols("C");
+    const fromEm = strongSymbols("Em");
+    const fromEb = strongSymbols("Eb");
+    expect(fromC).not.toEqual(fromEm);
+    expect(fromC).not.toEqual(fromEb);
+    expect(fromEm).not.toEqual(fromEb);
+    expect(getContinuations("C", Cmaj).filter((move) => move.strong && move.pivotKind)).toEqual([]);
+  });
+});
+
+describe("o mesmo par grupo+grau no menor", () => {
+  it("repete os destinos de Dó maior a partir de cada função", () => {
+    const pair = (symbol: string, key: KeyContext) =>
+      getContinuations(symbol, key)
+        .filter((move) => move.strong)
+        .map((move) => `${move.group}:${degreeNumber(move.roman)}`)
+        .sort();
+    expect(pair("Am", Amin)).toEqual(pair("C", Cmaj));
+    expect(pair("Bdim", Amin)).toEqual(pair("Dm", Cmaj));
+    expect(pair("C", Amin)).toEqual(pair("Em", Cmaj));
+    expect(pair("Dm", Amin)).toEqual(pair("F", Cmaj));
+    expect(pair("E", Amin)).toEqual(pair("G", Cmaj));
+    expect(pair("E7", Amin)).toEqual(pair("G7", Cmaj));
+    expect(pair("F", Amin)).toEqual(pair("Am", Cmaj));
+    expect(pair("G#dim", Amin)).toEqual(pair("Bdim", Cmaj));
+    expect(pair("Dm", Amin)).toEqual(["borrowed:4", "dominant:5", "subdominant:2", "tonic:1"]);
+  });
+
+  it("trata VII como a mesma coleção de III e o deixa no anel 3", () => {
+    expect(familyName("borrowed", "VII")).toBe("Diatônico");
+    expect(familyName("tonic", "III")).toBe("Diatônico");
+    expect(byId(getContinuations("Am", Amin), "borrowed-VII").detail).toContain("III");
+    const placed = layoutContinuations(getContinuations("Am", Amin), Amin);
+    expect(placed.find((node) => node.continuation.id === "borrowed-VII")?.ring).toBe(3);
+    expect(placed.find((node) => node.continuation.id === "diatonic-vii°")?.angle).toBeCloseTo(140, 5);
+    expect(placed.find((node) => node.continuation.id === "diatonic-III")?.continuation.group).toBe("tonic");
+  });
+});
+
+describe("símbolo repetido leva legenda dupla", () => {
+  it("não desenha o mesmo símbolo duas vezes sem caption", () => {
+    const keys: KeyContext[] = [Cmaj, Amin, Fsharp, Bbmaj, Dbmaj, { tonic: "C", mode: "minor" }, { tonic: "E", mode: "major" }];
+    for (const key of keys) {
+      const tonic = key.mode === "minor" ? `${key.tonic}m` : key.tonic;
+      const groups = new Map<string, Continuation[]>();
+      for (const move of getContinuations(tonic, key)) {
+        const list = groups.get(move.symbol) ?? [];
+        list.push(move);
+        groups.set(move.symbol, list);
+      }
+      for (const list of groups.values()) {
+        if (list.length < 2) continue;
+        const unlabeled = list.filter((move) => !move.caption);
+        expect(unlabeled).toHaveLength(1);
+        expect(list.filter((move) => move.caption).every((move) => move.pivotKind && move.caption)).toBe(true);
+      }
+    }
+  });
+});
+
+describe("outras tonalidades", () => {
+  it("soletra Sol maior e Fá maior", () => {
+    const g = getContinuations("G", { tonic: "G", mode: "major" });
+    expect(byId(g, "diatonic-V").symbol).toBe("D");
+    expect(byId(g, "diatonic-ii").symbol).toBe("Am");
+    expect(byId(g, "diatonic-vii°").symbol).toBe("F#dim");
+    const f = getContinuations("F", { tonic: "F", mode: "major" });
+    expect(byId(f, "diatonic-IV").symbol).toBe("Bb");
+    expect(byId(f, "diatonic-V").symbol).toBe("C");
+    expect(byId(f, "secondary-V7/V").symbol).toBe("G7");
+    expect(byId(f, "borrowed-iv").symbol).toBe("Bbm");
+  });
+
+  it("soletra Mi bemol maior com Dó bemol", () => {
+    const moves = getContinuations("Eb", { tonic: "Eb", mode: "major" });
+    expect(byId(moves, "secondary-V7/V")).toMatchObject({ symbol: "F7" });
+    expect(byId(moves, "secondary-V7/ii")).toMatchObject({ symbol: "C7" });
+    expect(byId(moves, "borrowed-bVI").symbol).toBe("Cb");
+    expect(byId(moves, "borrowed-iv")).toMatchObject({ symbol: "Abm", notes: ["Ab", "Cb", "Eb"] });
+  });
+
+  it("soletra Mi maior com Fá dobrado sustenido", () => {
+    const moves = getContinuations("E", { tonic: "E", mode: "major" });
+    expect(byId(moves, "secondary-V7/iii")).toMatchObject({ symbol: "D#7" });
+    expect(byId(moves, "secondary-V7/iii").notes).toContain("F##");
+  });
+
+  it("soletra Fá sustenido maior com Mi sustenido", () => {
+    const moves = getContinuations("F#", Fsharp);
+    expect(byId(moves, "diatonic-vii°").symbol).toBe("E#dim");
+    expect(byId(moves, "secondary-V7/iii").symbol).toBe("E#7");
+  });
+
+  it("soletra Dó menor e Fá sustenido menor", () => {
+    const c = getContinuations("Cm", { tonic: "C", mode: "minor" });
+    expect(byId(c, "diatonic-III").symbol).toBe("Eb");
+    expect(byId(c, "diatonic-V").symbol).toBe("G");
+    expect(byId(c, "diatonic-vii°").symbol).toBe("Bdim");
+    expect(byId(c, "borrowed-VII").symbol).toBe("Bb");
+    const fs = getContinuations("F#m", { tonic: "F#", mode: "minor" });
+    expect(byId(fs, "diatonic-III").symbol).toBe("A");
+    expect(byId(fs, "diatonic-vii°").symbol).toBe("E#dim");
+    expect(byId(fs, "diatonic-VI").symbol).toBe("D");
+    expect(fs.some((move) => move.nextKey.tonic === "Fb")).toBe(false);
+  });
+
+  it("não chega em Fá bemol maior por uma cadeia de pivôs", () => {
+    const moves = getContinuations("Cb", { tonic: "Cb", mode: "major" });
+    expect(byId(moves, "pivot-fifth-down").nextKey).toEqual({ tonic: "E", mode: "major" });
+    expect(moves.some((move) => move.nextKey.tonic === "Fb")).toBe(false);
   });
 });
