@@ -57,10 +57,12 @@ body {
   background: var(--bg);
 }
 
-button,
-input,
-select {
-  font: inherit;
+@layer base {
+  button,
+  input,
+  select {
+    font: inherit;
+  }
 }
 
 h1,
