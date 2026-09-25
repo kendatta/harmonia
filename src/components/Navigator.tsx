@@ -11,6 +11,7 @@ import {
   ghostForRoman,
   layoutContinuations,
   layoutKey,
+  normAngle,
   polar,
   sectorArcPath,
   type PlacedChord,
@@ -35,9 +36,24 @@ interface Spoke {
   color: string;
 }
 
-function toSpoke(node: PlacedChord): Spoke {
-  const inner = polar(FRAME.c, FRAME.c, FRAME.centerRing, node.angle);
-  const outer = polar(FRAME.c, FRAME.c, node.orbit - node.r, node.angle);
+/** Radial segment from the center ring to the node edge, skipping any disk it would cross. */
+function toSpoke(node: PlacedChord, all: PlacedChord[]): Spoke | null {
+  const endR = node.orbit - node.r;
+  let startR: number = FRAME.centerRing;
+  for (const other of all) {
+    if (other.continuation.id === node.continuation.id) continue;
+    const deltaDeg = Math.abs(normAngle(other.angle - node.angle));
+    const delta = (Math.min(deltaDeg, 360 - deltaDeg) * Math.PI) / 180;
+    const dist = other.orbit * Math.sin(delta);
+    if (dist >= other.r - 0.25) continue;
+    const along = other.orbit * Math.cos(delta);
+    const half = Math.sqrt(Math.max(0, other.r * other.r - dist * dist));
+    const outer = along + half + 1;
+    if (outer > startR && outer < endR) startR = outer;
+  }
+  if (endR - startR < 4) return null;
+  const inner = polar(FRAME.c, FRAME.c, startR, node.angle);
+  const outer = polar(FRAME.c, FRAME.c, endR, node.angle);
   return {
     id: node.continuation.id,
     x1: inner.x,
@@ -418,12 +434,14 @@ export function Navigator() {
 
   const hovered = ordered.find((node) => node.continuation.id === hoverId) ?? null;
   const spokeSignature = `${isPlaying ? "play" : "rest"}|${ordered
-    .filter((node) => node.continuation.strong && node.ring <= 3)
-    .map((node) => `${node.continuation.id}:${node.angle}:${node.orbit}:${node.r}`)
+    .map((node) => `${node.continuation.id}:${node.angle.toFixed(1)}:${node.orbit}:${node.r}:${node.continuation.strong ? 1 : 0}`)
     .join("|")}`;
   const spokesWanted: Spoke[] = isPlaying
     ? []
-    : ordered.filter((node) => node.continuation.strong && node.ring <= 3).map(toSpoke);
+    : ordered
+        .filter((node) => node.continuation.strong && node.ring <= 3)
+        .map((node) => toSpoke(node, ordered))
+        .filter((spoke): spoke is Spoke => spoke !== null);
   const [spokeLayer, setSpokeLayer] = useState<Spoke[]>(spokesWanted);
   const [spokeOpacity, setSpokeOpacity] = useState(1);
   const [spokeFade, setSpokeFade] = useState(0);
@@ -459,7 +477,7 @@ export function Navigator() {
   }, [spokeSignature, reduced]);
 
   const hoverSpoke =
-    hovered && !isPlaying && !(hovered.continuation.strong && hovered.ring <= 3) ? toSpoke(hovered) : null;
+    hovered && !isPlaying && !(hovered.continuation.strong && hovered.ring <= 3) ? toSpoke(hovered, ordered) : null;
   const ghost = ghostForRoman(
     analysis.roman,
     placed.filter((node) => node.ring === 1).map((node) => node.angle),
