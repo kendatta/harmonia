@@ -201,13 +201,6 @@ function OrbitNode({
   const state = locked ? "unavailable" : hovered ? "hover" : strong ? "strong" : "rest";
   const strokeWidth = hovered || strong ? 2 : 1.5;
   const strokeOpacity = hovered || strong ? 1 : 0.55;
-  const dx = FRAME.c - node.x;
-  const dy = FRAME.c - node.y;
-  const len = Math.hypot(dx, dy) || 1;
-  const ux = dx / len;
-  const uy = dy / len;
-  const showSpoke = (strong || hovered) && !locked;
-
   return (
     <motion.g
       initial={origin === "inward" && !reduced ? { opacity: 0 } : false}
@@ -251,17 +244,6 @@ function OrbitNode({
           }
         }}
       >
-        {showSpoke ? (
-          <line
-            x1={ux * node.r}
-            y1={uy * node.r}
-            x2={ux * (len - FRAME.centerRing)}
-            y2={uy * (len - FRAME.centerRing)}
-            stroke={color}
-            strokeOpacity={0.4}
-            strokeWidth={hovered ? 1 : 1.5}
-          />
-        ) : null}
         <circle
           r={node.r}
           fill={hovered ? color : "var(--color-surface)"}
@@ -448,6 +430,27 @@ export function Navigator() {
         {targetLine ? (
           <line x1={targetLine.x1} y1={targetLine.y1} x2={targetLine.x2} y2={targetLine.y2} className="target-link" />
         ) : null}
+        {isPlaying
+          ? null
+          : ordered
+              .filter((node) => node.continuation.strong || node.continuation.id === hoverId)
+              .map((node) => {
+                const inner = polar(FRAME.c, FRAME.c, FRAME.centerRing, node.angle);
+                const outer = polar(FRAME.c, FRAME.c, node.orbit - node.r, node.angle);
+                return (
+                  <line
+                    key={`spoke-${node.continuation.id}`}
+                    x1={inner.x}
+                    y1={inner.y}
+                    x2={outer.x}
+                    y2={outer.y}
+                    stroke={groupVar(node.continuation.group)}
+                    strokeOpacity={0.4}
+                    strokeWidth={node.continuation.id === hoverId ? 1 : 1.5}
+                    pointerEvents="none"
+                  />
+                );
+              })}
         <AnimatePresence initial={false}>
           {ordered.map((node) => {
             const id = layoutKey(node.continuation.symbol, node.continuation.group);

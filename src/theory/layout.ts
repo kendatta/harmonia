@@ -258,14 +258,21 @@ export function layoutContinuations(moves: Continuation[], key: KeyContext): Pla
       const outward = item.orbit + item.r + 14;
       const outwardPoint = polar(FRAME.c, FRAME.c, outward, item.angle);
       const clips =
-        outwardPoint.x < 28 || outwardPoint.x > FRAME.size - 28 || outwardPoint.y < 16 || outwardPoint.y > FRAME.size - 18;
-      const radius = clips ? item.orbit - item.r - 12 : outward;
-      const labelPoint = polar(FRAME.c, FRAME.c, radius, item.angle);
-      placed.label = {
-        x: labelPoint.x,
-        y: labelPoint.y,
-        anchor: labelAnchor(item.angle),
-      };
+        outwardPoint.x < 36 || outwardPoint.x > FRAME.size - 36 || outwardPoint.y < 18 || outwardPoint.y > FRAME.size - 18;
+      if (!clips) {
+        placed.label = { x: outwardPoint.x, y: outwardPoint.y, anchor: labelAnchor(item.angle) };
+      } else {
+        const node = polar(FRAME.c, FRAME.c, item.orbit, item.angle);
+        const rad = (item.angle * Math.PI) / 180;
+        const tx = Math.cos(rad);
+        const ty = Math.sin(rad);
+        const gap = item.r + 18;
+        const above = { x: node.x + tx * gap, y: node.y + ty * gap };
+        const below = { x: node.x - tx * gap, y: node.y - ty * gap };
+        const room = (point: { x: number; y: number }) => Math.min(point.x, point.y, FRAME.size - point.x, FRAME.size - point.y);
+        const labelPoint = room(above) >= room(below) ? above : below;
+        placed.label = { x: labelPoint.x, y: labelPoint.y, anchor: "middle" };
+      }
     }
     return placed;
   });
@@ -286,7 +293,8 @@ export function ghostForRoman(roman: string, occupiedAngles: number[]): { x: num
 export const SECTORS = [
   { id: "tonic", label: "TÔNICA", angle: 0 },
   { id: "dominant", label: "DOMINANTE", angle: 120 },
-  { id: "subdominant", label: "SUBDOMINANTE", angle: 240 },
+  // 240° is the bisector, but the long label covers ii and V7/ii. 188° stays in the sector.
+  { id: "subdominant", label: "SUBDOMINANTE", angle: 188 },
 ] as const;
 
 export const SECTOR_RAYS = [60, 180, 300] as const;
