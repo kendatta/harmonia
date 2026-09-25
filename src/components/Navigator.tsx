@@ -17,7 +17,6 @@ import {
   type PlacedChord,
 } from "../theory/layout";
 import { chordAria, keyPhrase, pivotLabel } from "../theory/speech";
-import { opacity } from "../theme/tokens";
 import { useHarmonyStore } from "../store/useHarmonyStore";
 import type { Group } from "../theory/types";
 import { SvgChord } from "./ChordSymbol";
@@ -244,8 +243,8 @@ function OrbitNode({
   const hot = hovered && !locked;
   const receded = !strong && !hot;
   const state = locked ? "unavailable" : hot ? "hover" : strong ? "strong" : "receded";
-  const strokeWidth = receded ? 1 : 2;
-  const strokeOpacity = receded ? 0.25 : move.group === "pivot" && strong && !hot ? opacity.restStroke : 1;
+  const strokeWidth = receded ? 2.5 : 3.5;
+  const strokeOpacity = receded ? 0.6 : 1;
   const symbolFill = receded ? "var(--color-text-muted)" : "var(--color-text)";
   const degreeFill = hot ? "var(--color-text-secondary)" : "var(--color-text-muted)";
   return (
@@ -302,15 +301,15 @@ function OrbitNode({
         {twin ? (
           <circle
             data-twin="true"
-            r={node.r + 3}
+            r={node.r + 4.5}
             fill="none"
             stroke={color}
-            strokeWidth={1}
+            strokeWidth={1.5}
             strokeDasharray="3 2"
             pointerEvents="none"
           />
         ) : null}
-        <circle className="focus-ring" r={node.r + 4} />
+        <circle className="focus-ring" r={node.r + 7} />
         <SvgChord
           symbol={move.symbol}
           size={node.ring === 1 ? 14 : 13}
