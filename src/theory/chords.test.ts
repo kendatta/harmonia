@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayRoman, displaySymbol, formatNotes, inferKey, musicGlyphs, notesOf, voiceChord } from "./chords";
+import { displayRoman, displaySymbol, formatNotes, inferKey, keyboardStart, musicGlyphs, notesOf, voiceChord, voicedMidis } from "./chords";
 
 describe("notas dos acordes", () => {
   it("soletra a tríade maior de C", () => {
@@ -64,5 +64,14 @@ describe("voicing", () => {
   it("empilha as notas em ordem crescente a partir de C3", () => {
     expect(voiceChord(["C", "E", "G"])).toEqual(["C3", "E3", "G3"]);
     expect(voiceChord(["A", "C", "E"])).toEqual(["A3", "C4", "E4"]);
+  });
+
+  it("acende só as notas do voicing, na oitava tocada", () => {
+    const g = voicedMidis(["G", "B", "D"]);
+    expect(g).toEqual([55, 59, 62]);
+    const start = keyboardStart(g);
+    const window = Array.from({ length: 24 }, (_, index) => start + index);
+    expect(window.filter((midi) => g.includes(midi))).toEqual(g);
+    expect(voicedMidis(["C", "Eb", "G"])[1]).toBe(51);
   });
 });

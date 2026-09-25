@@ -1,34 +1,50 @@
 import type { Group } from "../theory/types";
 
-export const GROUP_COLOR: Record<Group | "chromatic", string> = {
-  tonic: "#e3c17a",
-  subdominant: "#7fbfb4",
-  dominant: "#e39476",
-  secondary: "#b4a6e2",
-  borrowed: "#8aafdc",
-  pivot: "#e3a8b8",
-  chromatic: "#b7b1a6",
-};
-
-export const GROUP_LABEL: Record<Group | "chromatic", string> = {
-  tonic: "Tônica",
-  subdominant: "Subdominante",
-  dominant: "Dominante",
-  secondary: "Dominante secundária",
-  borrowed: "Empréstimo modal",
-  pivot: "Modulação",
-  chromatic: "Cromático",
-};
-
-export function pivotCaption(kind: "relative" | "parallel" | "fifth-up" | "fifth-down"): string {
-  switch (kind) {
-    case "relative":
-      return "relativo";
-    case "parallel":
-      return "paralelo";
-    case "fifth-up":
-      return "quinta ↑";
-    case "fifth-down":
-      return "quinta ↓";
+export function groupVar(group: Group | "chromatic"): string {
+  switch (group) {
+    case "secondary":
+      return "var(--color-group-secondary)";
+    case "borrowed":
+      return "var(--color-group-borrowed)";
+    case "pivot":
+      return "var(--color-group-pivot)";
+    case "chromatic":
+      return "var(--color-text-muted)";
+    default:
+      return "var(--color-group-diatonic)";
   }
 }
+
+export function familyName(group: Group | "chromatic"): string {
+  if (group === "secondary") return "Dom. secundária";
+  if (group === "borrowed") return "Emprestado";
+  if (group === "pivot") return "Pivô";
+  if (group === "chromatic") return "Cromático";
+  return "Diatônico";
+}
+
+export function functionName(group: Group | "chromatic"): string {
+  switch (group) {
+    case "tonic":
+      return "Tônica";
+    case "subdominant":
+      return "Subdominante";
+    case "dominant":
+      return "Dominante";
+    case "secondary":
+      return "Dom. secundária";
+    case "borrowed":
+      return "Emprestado";
+    case "pivot":
+      return "Pivô";
+    default:
+      return "Cromático";
+  }
+}
+
+export const LEGEND = [
+  { id: "diatonic", label: "Diatônicos", color: "var(--color-group-diatonic)" },
+  { id: "secondary", label: "Dom. secundárias", color: "var(--color-group-secondary)" },
+  { id: "borrowed", label: "Emprestados", color: "var(--color-group-borrowed)" },
+  { id: "pivot", label: "Pivôs", color: "var(--color-group-pivot)" },
+] as const;

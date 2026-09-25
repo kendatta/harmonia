@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { getContinuations } from "./continuations";
-import { CENTER_EASE, CENTER_TRANSITION_MS, FRAME, angleForRoman, layoutContinuations, type PlacedChord } from "./layout";
+import {
+  CENTER_EASE,
+  CENTER_TRANSITION_MS,
+  FRAME,
+  angleForRoman,
+  layoutContinuations,
+  minGapDegrees,
+  spreadAngles,
+  type PlacedChord,
+} from "./layout";
 import type { KeyContext as Key } from "./types";
 
 const cases: { symbol: string; key: Key }[] = [
@@ -19,10 +28,13 @@ function angleOf(node: PlacedChord): number {
 }
 
 describe("geometria das continuações", () => {
-  it("usa uma tela de 720 e quatro raios de anel", () => {
+  it("usa a tela e os raios da direção visual", () => {
     expect(FRAME.size).toBe(720);
-    const radii = [FRAME.rDiatonic, FRAME.rSecondary, FRAME.rBorrowed, FRAME.rPivot];
-    expect(new Set(radii).size).toBe(4);
+    expect(FRAME.centerR).toBe(46);
+    expect(FRAME.rDiatonic).toBe(118);
+    expect(FRAME.rSecondary).toBe(186);
+    expect(FRAME.rBorrowed).toBe(250);
+    expect(FRAME.rPivot).toBe(312);
     expect(CENTER_TRANSITION_MS).toBeLessThanOrEqual(450);
     for (const value of CENTER_EASE) {
       expect(value).toBeGreaterThanOrEqual(0);
@@ -37,6 +49,9 @@ describe("geometria das continuações", () => {
       const rings = new Set(nodes.map((node) => node.ring));
       expect(rings).toEqual(new Set([1, 2, 3, 4]));
       for (const node of nodes) {
+        expect(node.orbit).toBe(
+          node.ring === 1 ? 118 : node.ring === 2 ? 186 : node.ring === 3 ? 250 : 312,
+        );
         expect(node.x - node.r).toBeGreaterThan(4);
         expect(node.y - node.r).toBeGreaterThan(4);
         expect(node.x + node.r).toBeLessThan(FRAME.size - 4);
@@ -53,22 +68,31 @@ describe("geometria das continuações", () => {
     }
   });
 
-  it("fixa o ângulo pelo grau da escala, em qualquer anel", () => {
-    const nodes = layoutContinuations(getContinuations("C", { tonic: "C", mode: "major" }), {
-      tonic: "C",
-      mode: "major",
-    });
+  it("fixa o ângulo de cada grau e alinha V/x e empréstimos", () => {
+    const key: Key = { tonic: "C", mode: "major" };
+    const nodes = layoutContinuations(getContinuations("G7", key), key);
     const byId = (id: string) => nodes.find((node) => node.continuation.id === id);
-    const fifth = angleForRoman("V");
-    for (const id of ["diatonic-V", "secondary-V7/V", "pivot-fifth-up"]) {
-      const node = byId(id);
-      expect(node).toBeTruthy();
-      expect(angleOf(node!)).toBeCloseTo(fifth, 5);
-    }
-    expect(angleOf(byId("diatonic-IV")!)).toBeCloseTo(angleForRoman("IV"), 5);
+    expect(angleOf(byId("diatonic-I")!)).toBeCloseTo(0, 5);
+    expect(angleOf(byId("diatonic-iii")!)).toBeCloseTo(40, 5);
+    expect(angleOf(byId("diatonic-V")!)).toBeCloseTo(100, 5);
+    expect(angleOf(byId("diatonic-vii°")!)).toBeCloseTo(140, 5);
+    expect(angleOf(byId("diatonic-ii")!)).toBeCloseTo(220, 5);
+    expect(angleOf(byId("diatonic-IV")!)).toBeCloseTo(260, 5);
+    expect(angleOf(byId("diatonic-vi")!)).toBeCloseTo(320, 5);
+    expect(angleOf(byId("secondary-V7/V")!)).toBeCloseTo(angleForRoman("V"), 5);
     expect(angleOf(byId("borrowed-iv")!)).toBeCloseTo(angleForRoman("IV"), 5);
-    expect(angleOf(byId("pivot-fifth-down")!)).toBeCloseTo(angleForRoman("IV"), 5);
-    expect(angleOf(byId("borrowed-bIII")!)).toBeCloseTo(angleForRoman("III"), 5);
-    expect(angleOf(byId("pivot-parallel")!)).toBeCloseTo(0, 5);
+    expect(angleOf(byId("borrowed-bIII")!)).toBeCloseTo(40, 5);
+    expect(angleOf(byId("pivot-fifth-up")!)).toBeCloseTo(30, 5);
+    expect(angleOf(byId("pivot-fifth-down")!)).toBeCloseTo(330, 5);
+    expect(angleOf(byId("pivot-parallel")!)).toBeCloseTo(270, 5);
+    expect(angleOf(byId("pivot-relative")!)).toBeCloseTo(0, 5);
+  });
+
+  it("abre em leque só quando dois nós dividem o mesmo ângulo", () => {
+    const gap = minGapDegrees(19, 312);
+    expect(spreadAngles([0, 30, 270, 330], gap)).toEqual([0, 30, 270, 330]);
+    const fanned = spreadAngles([0, 0], gap);
+    expect(fanned[0]).toBeCloseTo(360 - gap / 2, 5);
+    expect(fanned[1]).toBeCloseTo(gap / 2, 5);
   });
 });

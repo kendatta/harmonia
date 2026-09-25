@@ -1,188 +1,363 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, animate, motion, useReducedMotion } from "motion/react";
-import { displayRoman, displaySymbol, keyLabel } from "../theory/chords";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AnimatePresence, animate, motion, useIsPresent, useReducedMotion } from "motion/react";
+import { displayRoman } from "../theory/chords";
 import { describeChordInKey, getContinuations } from "../theory/continuations";
 import {
   CENTER_EASE,
-  CENTER_TRANSITION_MS,
+  ENTER_DELAY,
   FRAME,
-  degreeRays,
+  SECTORS,
+  SECTOR_RAYS,
+  ghostForRoman,
   layoutContinuations,
-  ringLabels,
+  layoutKey,
+  polar,
   type PlacedChord,
 } from "../theory/layout";
+import { chordAria, keyPhrase, pivotLabel } from "../theory/speech";
 import { useHarmonyStore } from "../store/useHarmonyStore";
-import { GROUP_COLOR, pivotCaption } from "./groupMeta";
 import type { Group } from "../theory/types";
+import { SvgChord } from "./ChordSymbol";
+import { LEGEND, groupVar } from "./groupMeta";
+import { useSoundingProgress } from "./useSounding";
 
 const EASE = CENTER_EASE;
 
-function useSvgTranslate(x: number, y: number, reduced: boolean) {
+type Origin = "stay" | "center" | "inward";
+
+interface Memory {
+  symbol: string;
+  group: string;
+  keyId: string;
+  ids: string[];
+  positions: Record<string, { x: number; y: number; r: number }>;
+  origins: Record<string, Origin>;
+  fly: { x: number; y: number; r: number; symbol: string } | null;
+}
+
+function remember(
+  symbol: string,
+  group: string,
+  keyId: string,
+  nodes: PlacedChord[],
+  previous: Memory | null,
+  transitionFrom: { x: number; y: number; r: number; symbol: string } | null,
+): Memory {
+  const prevIds = new Set(previous?.ids ?? []);
+  const prevCenter = previous ? layoutKey(previous.symbol, previous.group) : "";
+  const positions: Memory["positions"] = {};
+  const origins: Memory["origins"] = {};
+  const ids = nodes.map((node) => {
+    const id = layoutKey(node.continuation.symbol, node.continuation.group);
+    positions[id] = { x: node.x, y: node.y, r: node.r };
+    if (!previous) origins[id] = "stay";
+    else if (prevIds.has(id)) origins[id] = "stay";
+    else if (id === prevCenter) origins[id] = "center";
+    else origins[id] = "inward";
+    return id;
+  });
+  const slot = layoutKey(symbol, group);
+  const fromClick = transitionFrom && transitionFrom.symbol === symbol ? transitionFrom : null;
+  const fromMap = previous?.positions[slot];
+  return {
+    symbol,
+    group,
+    keyId,
+    ids,
+    positions,
+    origins,
+    fly: fromClick ?? (fromMap ? { ...fromMap, symbol } : null),
+  };
+}
+
+function DrainArc({ radius, color, progress }: { radius: number; color: string; progress: number }) {
+  const circ = 2 * Math.PI * radius;
+  return (
+    <circle
+      r={radius}
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeDasharray={`${circ} ${circ}`}
+      strokeDashoffset={circ * progress}
+      transform="rotate(-90)"
+      data-progress={progress.toFixed(3)}
+    />
+  );
+}
+
+function useNodeMotion(
+  target: { x: number; y: number; scale: number },
+  spec: { fromX: number | null; fromY: number | null; fromScale: number; delay: number; duration: number; reduced: boolean },
+) {
   const ref = useRef<SVGGElement | null>(null);
-  const pos = useRef({ x, y });
+  const pos = useRef({
+    x: spec.fromX ?? target.x,
+    y: spec.fromY ?? target.y,
+    scale: spec.fromX === null ? target.scale : spec.fromScale,
+  });
 
   const setNode = useCallback((node: SVGGElement | null) => {
     ref.current = node;
-    if (node) node.setAttribute("transform", `translate(${pos.current.x} ${pos.current.y})`);
+    if (!node) return;
+    const place = pos.current;
+    node.setAttribute("transform", `translate(${place.x} ${place.y}) scale(${place.scale})`);
   }, []);
 
   useEffect(() => {
-    const from = pos.current;
     const node = ref.current;
-    if (!node || reduced || (from.x === x && from.y === y)) {
-      pos.current = { x, y };
-      ref.current?.setAttribute("transform", `translate(${x} ${y})`);
+    if (!node) return;
+    const start = pos.current;
+    const distance = Math.hypot(target.x - start.x, target.y - start.y);
+    if (spec.reduced || (distance < 0.5 && Math.abs(target.scale - start.scale) < 0.001)) {
+      pos.current = { x: target.x, y: target.y, scale: target.scale };
+      node.setAttribute("transform", `translate(${target.x} ${target.y}) scale(${target.scale})`);
       return;
     }
+    const duration = distance > 0.5 ? spec.duration : 0.12;
     const controls = animate(0, 1, {
-      duration: CENTER_TRANSITION_MS / 1000,
+      delay: distance > 0.5 ? spec.delay : 0,
+      duration,
       ease: [EASE[0], EASE[1], EASE[2], EASE[3]],
       onUpdate: (t) => {
-        const nx = from.x + (x - from.x) * t;
-        const ny = from.y + (y - from.y) * t;
-        pos.current = { x: nx, y: ny };
-        ref.current?.setAttribute("transform", `translate(${nx} ${ny})`);
+        const x = start.x + (target.x - start.x) * t;
+        const y = start.y + (target.y - start.y) * t;
+        const scale = start.scale + (target.scale - start.scale) * t;
+        pos.current = { x, y, scale };
+        ref.current?.setAttribute("transform", `translate(${x} ${y}) scale(${scale})`);
       },
     });
     return () => controls.stop();
-  }, [reduced, x, y]);
+  }, [spec.delay, spec.duration, spec.reduced, target.scale, target.x, target.y]);
 
-  return setNode;
-}
-
-function polygon(sides: number, radius: number, rotationDeg: number): string {
-  return Array.from({ length: sides }, (_, index) => {
-    const angle = ((index * (360 / sides) + rotationDeg) * Math.PI) / 180;
-    return `${Math.cos(angle) * radius},${Math.sin(angle) * radius}`;
-  }).join(" ");
-}
-
-function shapeOf(group: Group): "circle" | "square" | "diamond" | "octagon" | "hexagon" | "double" {
-  switch (group) {
-    case "tonic":
-      return "circle";
-    case "subdominant":
-      return "square";
-    case "dominant":
-      return "diamond";
-    case "secondary":
-      return "octagon";
-    case "borrowed":
-      return "hexagon";
-    case "pivot":
-      return "double";
-  }
-}
-
-function NodeShape({
-  group,
-  r,
-  state,
-}: {
-  group: Group;
-  r: number;
-  state: "default" | "strong" | "hover";
-}) {
-  const color = GROUP_COLOR[group];
-  const emphasized = state !== "default";
-  const common = {
-    fill: color,
-    fillOpacity: state === "hover" ? 0.38 : state === "strong" ? 0.24 : 0.1,
-    stroke: state === "hover" ? "#e6e4df" : color,
-    strokeWidth: state === "hover" ? 2.2 : emphasized ? 1.9 : 1.15,
-  };
-  const shape = shapeOf(group);
-
-  if (shape === "square") {
-    const side = r * Math.SQRT1_2 * 2;
-    return <rect x={-side / 2} y={-side / 2} width={side} height={side} {...common} />;
-  }
-  if (shape === "diamond") {
-    return <polygon points={polygon(4, r, -90)} {...common} />;
-  }
-  if (shape === "octagon") {
-    return <polygon points={polygon(8, r, -90)} {...common} />;
-  }
-  if (shape === "hexagon") {
-    return <polygon points={polygon(6, r, -90)} {...common} />;
-  }
-  return (
-    <>
-      <circle r={r} {...common} />
-      {shape === "double" ? <circle r={r - 5} fill="none" stroke={color} strokeWidth={emphasized ? 1.4 : 1} /> : null}
-    </>
-  );
+  return { setNode, pos, ref };
 }
 
 function OrbitNode({
   node,
+  origin,
   hovered,
+  locked,
+  exitInstant,
   onHover,
   onPick,
 }: {
   node: PlacedChord;
+  origin: "stay" | "center" | "inward";
   hovered: boolean;
+  locked: boolean;
+  exitInstant: boolean;
   onHover: (id: string | null) => void;
   onPick: (node: PlacedChord) => void;
 }) {
   const reduced = useReducedMotion() ?? false;
-  const setNode = useSvgTranslate(node.x, node.y, reduced);
+  const present = useIsPresent();
   const move = node.continuation;
-  const color = GROUP_COLOR[move.group];
-  const symbol = displaySymbol(move.symbol);
-  const roman = displayRoman(move.roman);
-  const pivot = move.group === "pivot";
-  const state = hovered ? "hover" : move.strong ? "strong" : "default";
-  const symbolSize = symbol.length >= 5 ? 10 : symbol.length >= 4 ? 11 : 13;
-  const romanSize = roman.length >= 6 ? 8 : 9;
+  const color = groupVar(move.group);
+  const delay = ENTER_DELAY[node.ring];
+  const inward = polar(FRAME.c, FRAME.c, Math.max(0, node.orbit - 12), node.angle);
+  const from =
+    origin === "center"
+      ? { x: FRAME.c, y: FRAME.c, scale: FRAME.centerR / node.r }
+      : origin === "inward" && !reduced
+        ? { x: inward.x, y: inward.y, scale: 1 }
+        : null;
+  const hoverScale = hovered && !locked && !reduced ? 1.06 : 1;
+  const { setNode, pos, ref } = useNodeMotion(
+    { x: node.x, y: node.y, scale: hoverScale },
+    {
+      fromX: from?.x ?? null,
+      fromY: from?.y ?? null,
+      fromScale: from?.scale ?? 1,
+      delay: origin === "inward" && !reduced ? delay : 0,
+      duration: reduced ? 0 : origin === "inward" ? Math.max(0.08, 0.45 - delay) : 0.42,
+      reduced,
+    },
+  );
+
+  useEffect(() => {
+    if (present || reduced || exitInstant) return;
+    const start = pos.current;
+    const dx = FRAME.c - start.x;
+    const dy = FRAME.c - start.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const endX = start.x + (dx / len) * 12;
+    const endY = start.y + (dy / len) * 12;
+    const controls = animate(0, 1, {
+      duration: 0.16,
+      ease: [EASE[0], EASE[1], EASE[2], EASE[3]],
+      onUpdate: (t) => {
+        const x = start.x + (endX - start.x) * t;
+        const y = start.y + (endY - start.y) * t;
+        const scale = start.scale + (0.9 - start.scale) * t;
+        pos.current = { x, y, scale };
+        ref.current?.setAttribute("transform", `translate(${x} ${y}) scale(${scale})`);
+      },
+    });
+    return () => controls.stop();
+  }, [exitInstant, pos, present, reduced, ref]);
+
+  const strong = move.strong;
+  const state = locked ? "unavailable" : hovered ? "hover" : strong ? "strong" : "rest";
+  const strokeWidth = hovered || strong ? 2 : 1.5;
+  const strokeOpacity = hovered || strong ? 1 : 0.55;
+  const dx = FRAME.c - node.x;
+  const dy = FRAME.c - node.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len;
+  const uy = dy / len;
+  const showSpoke = (strong || hovered) && !locked;
 
   return (
     <motion.g
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: reduced ? 0 : 0.28, ease: [EASE[0], EASE[1], EASE[2], EASE[3]] }}
+      initial={origin === "inward" && !reduced ? { opacity: 0 } : false}
+      animate={{ opacity: locked ? 0.4 : 1 }}
+      exit={{ opacity: 0, transition: { duration: exitInstant || reduced ? 0.12 : 0.16 } }}
+      transition={{
+        duration: reduced ? 0.12 : origin === "inward" ? Math.max(0.08, 0.45 - delay) : 0.2,
+        delay: reduced || origin !== "inward" ? 0 : delay,
+      }}
     >
       <g
         ref={setNode}
         className="orbit-node"
         role="button"
-        tabIndex={0}
+        tabIndex={locked ? -1 : 0}
         data-testid={`orbit-${move.id}`}
         data-symbol={move.symbol}
         data-group={move.group}
-        data-shape={shapeOf(move.group)}
         data-ring={node.ring}
+        data-orbit={node.orbit}
+        data-angle={node.angle}
+        data-strong={strong ? "true" : "false"}
         data-state={state}
-        data-strong={move.strong ? "true" : "false"}
-        aria-label={`${symbol}, ${roman}. ${move.detail}`}
-        onMouseEnter={() => onHover(move.id)}
+        aria-label={chordAria(move)}
+        onMouseEnter={() => {
+          if (!locked) onHover(move.id);
+        }}
         onMouseLeave={() => onHover(null)}
-        onFocus={() => onHover(move.id)}
+        onFocus={() => {
+          if (!locked) onHover(move.id);
+        }}
         onBlur={() => onHover(null)}
-        onClick={() => onPick(node)}
+        onClick={() => {
+          if (!locked) onPick(node);
+        }}
         onKeyDown={(event) => {
+          if (locked) return;
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             onPick(node);
           }
         }}
       >
-        <NodeShape group={move.group} r={node.r} state={state} />
-        <text y={pivot ? -10 : -5} textAnchor="middle" className="node-roman" fill={color} fontSize={romanSize}>
-          {roman}
-        </text>
-        <text y={pivot ? 3 : 10} textAnchor="middle" className="node-symbol" fontSize={symbolSize}>
-          {symbol}
-        </text>
-        {move.pivotKind ? (
-          <text y={15} textAnchor="middle" className="node-relation" fill={color}>
-            {pivotCaption(move.pivotKind)}
-          </text>
+        {showSpoke ? (
+          <line
+            x1={ux * node.r}
+            y1={uy * node.r}
+            x2={ux * (len - FRAME.centerRing)}
+            y2={uy * (len - FRAME.centerRing)}
+            stroke={color}
+            strokeOpacity={0.4}
+            strokeWidth={hovered ? 1 : 1.5}
+          />
         ) : null}
+        <circle
+          r={node.r}
+          fill={hovered ? color : "var(--color-surface)"}
+          fillOpacity={hovered ? 0.12 : 1}
+          stroke={color}
+          strokeOpacity={strokeOpacity}
+          strokeWidth={strokeWidth}
+        />
+        <circle className="focus-ring" r={node.r + 4} />
+        <SvgChord
+          symbol={move.symbol}
+          size={node.ring === 1 ? 14 : 13}
+          maxWidth={node.r * 1.6}
+          y={node.ring === 4 ? 4 : -3}
+          fill="var(--color-text)"
+        />
+        {node.ring === 4 ? null : (
+          <text y={10} textAnchor="middle" className="node-roman" fill={hovered ? "var(--color-text-secondary)" : "var(--color-text-muted)"}>
+            {displayRoman(move.roman)}
+          </text>
+        )}
         <title>{move.detail}</title>
       </g>
     </motion.g>
+  );
+}
+
+function CenterDisk({
+  symbol,
+  roman,
+  group,
+  subtitle,
+  fly,
+  playing,
+  progress,
+  reduced,
+  onReplay,
+}: {
+  symbol: string;
+  roman: string;
+  group: Group | "chromatic";
+  subtitle: string;
+  fly: { x: number; y: number; r: number } | null;
+  playing: boolean;
+  progress: number;
+  reduced: boolean;
+  onReplay: () => void;
+}) {
+  const color = groupVar(group);
+  const { setNode } = useNodeMotion(
+    { x: FRAME.c, y: FRAME.c, scale: 1 },
+    {
+      fromX: fly && !reduced ? fly.x : null,
+      fromY: fly && !reduced ? fly.y : null,
+      fromScale: fly && !reduced ? fly.r / FRAME.centerR : 1,
+      delay: 0,
+      duration: reduced ? 0.12 : 0.42,
+      reduced,
+    },
+  );
+
+  return (
+    <g ref={setNode} data-testid="center-chord" data-state={playing ? "playing" : "selected"} data-group={group}>
+      {playing && !reduced ? (
+        <motion.circle
+          r={55}
+          fill="none"
+          stroke={color}
+          strokeWidth={10}
+          initial={{ opacity: 0.35 }}
+          animate={{ opacity: 0 }}
+          transition={{ duration: 0.42, ease: [EASE[0], EASE[1], EASE[2], EASE[3]] }}
+        />
+      ) : null}
+      {playing ? <DrainArc radius={FRAME.centerR + 5} color={color} progress={progress} /> : null}
+      <circle r={FRAME.centerR} fill={playing ? color : "var(--color-text)"} />
+      <SvgChord symbol={symbol} size={28} maxWidth={FRAME.centerR * 1.6} y={-6} fill="var(--color-bg)" />
+      <text y={16} textAnchor="middle" className="center-meta" fill="var(--color-bg)" fillOpacity={0.7}>
+        {displayRoman(roman)} · {subtitle}
+      </text>
+      <circle
+        r={FRAME.centerR}
+        fill="transparent"
+        className="orbit-node"
+        role="button"
+        tabIndex={0}
+        aria-label={`${symbol}, centro`}
+        onClick={onReplay}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onReplay();
+          }
+        }}
+      />
+    </g>
   );
 }
 
@@ -191,150 +366,152 @@ export function Navigator() {
   const key = useHarmonyStore((state) => state.key);
   const playbackStep = useHarmonyStore((state) => state.playbackStep);
   const isPlaying = useHarmonyStore((state) => state.isPlaying);
-  const audibleAt = useHarmonyStore((state) => state.audibleAt);
+  const paused = useHarmonyStore((state) => state.paused);
+  const sounding = useHarmonyStore((state) => state.sounding);
+  const transitionFrom = useHarmonyStore((state) => state.transitionFrom);
   const choose = useHarmonyStore((state) => state.chooseContinuation);
   const replay = useHarmonyStore((state) => state.replayCenter);
-  const stop = useHarmonyStore((state) => state.stopPlayback);
+  const setTransitionFrom = useHarmonyStore((state) => state.setTransitionFrom);
+  const reduced = useReducedMotion() ?? false;
+  const progress = useSoundingProgress(sounding);
   const [hoverId, setHoverId] = useState<string | null>(null);
-  const [sounding, setSounding] = useState(false);
+
+  const overlay = (isPlaying || paused) && playbackStep ? playbackStep : null;
+  const symbol = overlay?.symbol ?? center.symbol;
+  const activeKey = overlay?.key ?? key;
+  const analysis = overlay ?? describeChordInKey(symbol, activeKey);
+  const placed = layoutContinuations(getContinuations(symbol, activeKey), activeKey);
+  const ordered = [...placed].sort((a, b) => a.ring - b.ring || a.angle - b.angle);
+  const playing = Boolean(sounding && progress < 1);
+  const keyId = `${activeKey.tonic}|${activeKey.mode}`;
+  const [memory, setMemory] = useState<Memory>(() => remember(symbol, analysis.group, keyId, ordered, null, null));
+  let view = memory;
+  if (memory.symbol !== symbol || memory.group !== analysis.group || memory.keyId !== keyId) {
+    view = remember(symbol, analysis.group, keyId, ordered, memory, transitionFrom);
+    setMemory(view);
+  }
+  const fly = view.fly && view.fly.symbol === symbol ? view.fly : null;
 
   useEffect(() => {
-    if (!audibleAt || isPlaying) {
-      const clear = window.setTimeout(() => setSounding(false), 0);
-      return () => window.clearTimeout(clear);
-    }
-    const left = 3000 - (Date.now() - audibleAt);
-    if (left <= 0) {
-      const clear = window.setTimeout(() => setSounding(false), 0);
-      return () => window.clearTimeout(clear);
-    }
-    const start = window.setTimeout(() => setSounding(true), 0);
-    const stop = window.setTimeout(() => setSounding(false), left);
-    return () => {
-      window.clearTimeout(start);
-      window.clearTimeout(stop);
-    };
-  }, [audibleAt, isPlaying]);
+    if (transitionFrom) setTransitionFrom(null);
+  }, [setTransitionFrom, transitionFrom]);
 
-  const symbol = playbackStep?.symbol ?? center.symbol;
-  const visualKey = playbackStep?.key ?? key;
-  const moves = useMemo(() => getContinuations(symbol, visualKey), [symbol, visualKey]);
-  const nodes = useMemo(() => layoutContinuations(moves, visualKey), [moves, visualKey]);
-  const labels = useMemo(() => ringLabels(), []);
-  const rays = useMemo(() => degreeRays(), []);
-  const analysis = useMemo(() => describeChordInKey(symbol, visualKey), [symbol, visualKey]);
-  const hovered = nodes.find((node) => node.continuation.id === hoverId)?.continuation ?? null;
-  const reduced = useReducedMotion() ?? false;
-  const centerState = isPlaying || sounding ? "sounding" : "idle";
-  const shownSymbol = displaySymbol(symbol);
-  const shownRoman = displayRoman(analysis.roman);
-  const moveEase = reduced ? { duration: 0 } : { duration: CENTER_TRANSITION_MS / 1000, ease: [EASE[0], EASE[1], EASE[2], EASE[3]] as [number, number, number, number] };
+  const hovered = ordered.find((node) => node.continuation.id === hoverId) ?? null;
+  const ghost = ghostForRoman(
+    analysis.roman,
+    placed.filter((node) => node.ring === 1).map((node) => node.angle),
+  );
 
-  function pick(node: PlacedChord) {
-    if (isPlaying) {
-      stop();
-      return;
-    }
-    choose(node.continuation);
-  }
+  const targetLine = (() => {
+    if (!hovered || hovered.continuation.group !== "secondary" || isPlaying) return null;
+    const targetRoman = hovered.continuation.roman.split("/")[1];
+    if (!targetRoman) return null;
+    const target = placed.find((node) => node.ring === 1 && node.continuation.roman.replace("°", "") === targetRoman.replace("°", ""));
+    const at = target ? { x: target.x, y: target.y } : ghostForRoman(targetRoman, []);
+    if (!at) return null;
+    return { x1: hovered.x, y1: hovered.y, x2: at.x, y2: at.y };
+  })();
 
   return (
-    <div className="stage-card" data-testid="navigator">
-      <svg
-        className="orbit-svg"
-        viewBox={`0 0 ${FRAME.size} ${FRAME.size}`}
-        role="img"
-        aria-label="Mapa harmônico"
-        data-transition-ms={CENTER_TRANSITION_MS}
-      >
-        {rays.map((ray, index) => (
-          <line key={`ray-${index}`} className="degree-ray" x1={ray.x1} y1={ray.y1} x2={ray.x2} y2={ray.y2} />
+    <div className="stage-frame" data-testid="navigator">
+      <svg className="canvas-svg" viewBox="0 0 720 720" width="720" height="720" role="img" aria-label="Mapa harmônico">
+        {[FRAME.rDiatonic, FRAME.rSecondary, FRAME.rBorrowed].map((radius) => (
+          <circle key={radius} cx={FRAME.c} cy={FRAME.c} r={radius} className="guide" data-guide={radius} />
         ))}
-        <circle className="guide" data-ring="1" cx={FRAME.c} cy={FRAME.c} r={FRAME.rDiatonic} />
-        <circle className="guide" data-ring="2" cx={FRAME.c} cy={FRAME.c} r={FRAME.rSecondary} />
-        <circle className="guide" data-ring="3" cx={FRAME.c} cy={FRAME.c} r={FRAME.rBorrowed} />
-        <circle className="guide" data-ring="4" cx={FRAME.c} cy={FRAME.c} r={FRAME.rPivot} />
-        {labels.map((label) => (
-          <text
-            key={label.id}
-            x={label.x}
-            y={label.y}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            className="ring-label"
-            data-ring-label={label.id}
-          >
-            {label.text}
-          </text>
-        ))}
-
-        {nodes.map((node) => (
-          <motion.line
-            key={`line-${node.continuation.id}`}
-            x1={FRAME.c}
-            y1={FRAME.c}
-            initial={false}
-            animate={{ x2: node.x, y2: node.y }}
-            transition={moveEase}
-            stroke={GROUP_COLOR[node.continuation.group]}
-            strokeWidth={node.continuation.strong ? 1.35 : 0.8}
-            strokeOpacity={node.continuation.strong ? 0.7 : 0.28}
-          />
-        ))}
-
-        <g
-          className="center-chord"
-          data-state={centerState}
-          transform={`translate(${FRAME.c} ${FRAME.c})`}
-          role="button"
-          tabIndex={0}
-          data-testid="center-chord"
-          data-symbol={symbol}
-          aria-label={`${shownSymbol}, ${shownRoman}. Toque para ouvir.`}
-          onClick={() => replay()}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              replay();
-            }
-          }}
+        <circle cx={FRAME.c} cy={FRAME.c} r={FRAME.rPivot} className="guide guide-dashed" data-guide={FRAME.rPivot} />
+        <circle cx={FRAME.c} cy={FRAME.c} r={FRAME.centerRing} className="guide" />
+        {SECTOR_RAYS.map((angle) => {
+          const inner = polar(FRAME.c, FRAME.c, 70, angle);
+          const outer = polar(FRAME.c, FRAME.c, 150, angle);
+          return (
+            <line key={angle} x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y} className="sector-ray" />
+          );
+        })}
+        <motion.g
+          key={`${activeKey.tonic}-${activeKey.mode}`}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: reduced ? 0.12 : 0.2 }}
         >
-          <circle className="center-disc" r={FRAME.centerR} />
-          <circle className="center-pulse" r={FRAME.centerR + 8} />
-          <AnimatePresence>
-            <motion.g
-              key={`${symbol}-${visualKey.tonic}-${visualKey.mode}`}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: reduced ? 0 : 0.2, ease: [EASE[0], EASE[1], EASE[2], EASE[3]] }}
-            >
-              <text y={-16} textAnchor="middle" className="center-roman" fill={GROUP_COLOR[analysis.group]}>
-                {shownRoman}
+          {SECTORS.map((sector) => {
+            const point = polar(FRAME.c, FRAME.c, 160, sector.angle);
+            return (
+              <text key={sector.id} x={point.x} y={point.y} textAnchor="middle" className="sector-label">
+                {sector.label}
               </text>
-              <text y={12} textAnchor="middle" className="center-symbol" fontSize={shownSymbol.length >= 4 ? 26 : 34}>
-                {shownSymbol}
-              </text>
-              <text y={34} textAnchor="middle" className="center-key">
-                {keyLabel(visualKey)}
-              </text>
-            </motion.g>
-          </AnimatePresence>
-        </g>
-
-        <AnimatePresence>
-          {nodes.map((node) => (
-            <OrbitNode key={node.continuation.id} node={node} hovered={hoverId === node.continuation.id} onHover={setHoverId} onPick={pick} />
-          ))}
+            );
+          })}
+        </motion.g>
+        {ghost ? (
+          <circle cx={ghost.x} cy={ghost.y} r={FRAME.nodeDiatonic} className="ghost" data-ghost="true" />
+        ) : null}
+        {targetLine ? (
+          <line x1={targetLine.x1} y1={targetLine.y1} x2={targetLine.x2} y2={targetLine.y2} className="target-link" />
+        ) : null}
+        <AnimatePresence initial={false}>
+          {ordered.map((node) => {
+            const id = layoutKey(node.continuation.symbol, node.continuation.group);
+            const origin = view.origins[id] ?? "inward";
+            return (
+              <OrbitNode
+                key={id}
+                node={node}
+                origin={origin}
+                hovered={hoverId === node.continuation.id}
+                locked={isPlaying}
+                exitInstant={node.continuation.symbol === symbol}
+                onHover={setHoverId}
+                onPick={(picked) => {
+                  setTransitionFrom({
+                    x: picked.x,
+                    y: picked.y,
+                    r: picked.r,
+                    symbol: picked.continuation.symbol,
+                  });
+                  choose(picked.continuation);
+                }}
+              />
+            );
+          })}
         </AnimatePresence>
+        <CenterDisk
+          key={`${layoutKey(symbol, analysis.group)}|${keyId}`}
+          symbol={symbol}
+          roman={analysis.roman}
+          group={analysis.group}
+          subtitle={keyPhrase(activeKey)}
+          fly={fly}
+          playing={playing}
+          progress={progress}
+          reduced={reduced}
+          onReplay={() => {
+            if (!isPlaying) replay();
+          }}
+        />
+        {ordered
+          .filter((node) => node.label)
+          .map((node) => (
+            <text
+              key={`label-${node.continuation.id}`}
+              x={node.label?.x}
+              y={node.label?.y}
+              textAnchor={node.label?.anchor}
+              className="pivot-label"
+            >
+              {pivotLabel(node.continuation.nextKey)}
+            </text>
+          ))}
+        <g className="legend" transform="translate(16 700)">
+          {LEGEND.map((item, index) => (
+            <g key={item.id} transform={`translate(${[0, 118, 276, 412][index] ?? 0} 0)`}>
+              <circle r={4} cx={4} cy={-4} fill={item.color} />
+              <text x={16} y={0} className="legend-label">
+                {item.label}
+              </text>
+            </g>
+          ))}
+        </g>
       </svg>
-      <p className="orbit-detail" aria-live="polite">
-        {hovered
-          ? hovered.detail
-          : isPlaying
-            ? "Reproduzindo o caminho. O centro acompanha o acorde que está soando."
-            : "Passe o cursor sobre um caminho para ler a função. O traço mais firme é um passo provável a partir do centro."}
-      </p>
     </div>
   );
 }

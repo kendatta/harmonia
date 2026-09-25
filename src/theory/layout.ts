@@ -1,52 +1,38 @@
+import { Key } from "tonal";
 import type { Continuation, Group, KeyContext } from "./types";
 
-/** ViewBox is fixed at 720. Four rings, one fixed angle per scale degree. */
+/** ViewBox 720. Center (360, 360). 0° is 12 o'clock, clockwise. */
 export const FRAME = {
   size: 720,
   c: 360,
-  centerR: 52,
-  rDiatonic: 120,
-  rSecondary: 184,
-  rBorrowed: 248,
+  centerR: 46,
+  centerRing: 56,
+  rDiatonic: 118,
+  rSecondary: 186,
+  rBorrowed: 250,
   rPivot: 312,
-  nodeDiatonic: 24,
-  nodeSecondary: 22,
-  nodeBorrowed: 22,
-  nodePivot: 24,
+  nodeDiatonic: 27,
+  nodeSecondary: 23,
+  nodeBorrowed: 21,
+  nodePivot: 19,
 } as const;
 
-export const CENTER_TRANSITION_MS = 400;
+export const CENTER_TRANSITION_MS = 420;
 
-/**
- * Cubic-bezier control points. Every component stays in [0, 1], so the
- * curve's convex hull cannot leave that range: the motion eases out and
- * does not overshoot or bounce.
- */
+/** Cubic-bezier stays inside [0, 1], so the motion cannot overshoot. */
 export const CENTER_EASE = [0.22, 1, 0.36, 1] as const;
 
-export const DEGREE_STEP = 360 / 7;
+export const ENTER_DELAY = { 1: 0.12, 2: 0.16, 3: 0.2, 4: 0.24 } as const;
 
-const DEGREE_INDEX: Record<string, number> = {
-  I: 0,
-  i: 0,
-  II: 1,
-  ii: 1,
-  "ii°": 1,
-  bII: 1,
-  III: 2,
-  iii: 2,
-  bIII: 2,
-  IV: 3,
-  iv: 3,
-  V: 4,
-  v: 4,
-  VI: 5,
-  vi: 5,
-  bVI: 5,
-  VII: 6,
-  vii: 6,
-  "vii°": 6,
-  bVII: 6,
+/** Fixed angle per scale degree. The map does not rotate. */
+const DEGREE_ANGLE: Record<number, number> = {
+  1: 0,
+  2: 220,
+  3: 40,
+  4: 260,
+  5: 100,
+  6: -40,
+  7: 140,
 };
 
 const RING_OF: Record<Group, 1 | 2 | 3 | 4> = {
@@ -64,14 +50,9 @@ export interface PlacedChord {
   y: number;
   r: number;
   ring: 1 | 2 | 3 | 4;
+  orbit: number;
   angle: number;
-}
-
-export interface RingLabel {
-  id: string;
-  text: string;
-  x: number;
-  y: number;
+  label?: { x: number; y: number; anchor: "start" | "middle" | "end" };
 }
 
 export function polar(cx: number, cy: number, radius: number, degFromTop: number): { x: number; y: number } {
@@ -82,56 +63,230 @@ export function polar(cx: number, cy: number, radius: number, degFromTop: number
   };
 }
 
-export function angleForRoman(roman: string): number {
-  const target = roman.includes("/") ? (roman.split("/").pop() ?? roman) : roman;
-  const index = DEGREE_INDEX[target];
-  if (index === undefined) return Number.NaN;
-  return index * DEGREE_STEP;
+export function normAngle(angle: number): number {
+  return ((angle % 360) + 360) % 360;
 }
 
-function ringRadius(ring: 1 | 2 | 3 | 4): { radius: number; node: number } {
+export function degreeNumber(roman: string): number | null {
+  const target = roman.includes("/") ? (roman.split("/").pop() ?? roman) : roman;
+  const stripped = target.replace(/[0-9Δ°ø]/g, "").replace(/^♭/, "").replace(/^b/, "");
+  const map: Record<string, number> = {
+    I: 1,
+    i: 1,
+    II: 2,
+    ii: 2,
+    III: 3,
+    iii: 3,
+    IV: 4,
+    iv: 4,
+    V: 5,
+    v: 5,
+    VI: 6,
+    vi: 6,
+    VII: 7,
+    vii: 7,
+  };
+  return map[stripped] ?? null;
+}
+
+export function angleForDegree(degree: number): number {
+  const angle = DEGREE_ANGLE[degree];
+  if (angle === undefined) return Number.NaN;
+  return normAngle(angle);
+}
+
+export function angleForRoman(roman: string): number {
+  const degree = degreeNumber(roman);
+  if (!degree) return Number.NaN;
+  return angleForDegree(degree);
+}
+
+export function signatureAlteration(key: KeyContext): number {
+  const named = key.mode === "major" ? Key.majorKey(key.tonic) : Key.minorKey(key.tonic);
+  return named.alteration;
+}
+
+/** Sharps clockwise, flats counterclockwise. One fifth = 30°. */
+export function pivotAngle(from: KeyContext, to: KeyContext): number {
+  return normAngle((signatureAlteration(to) - signatureAlteration(from)) * 30);
+}
+
+function ringMetrics(ring: 1 | 2 | 3 | 4): { orbit: number; node: number } {
   switch (ring) {
     case 1:
-      return { radius: FRAME.rDiatonic, node: FRAME.nodeDiatonic };
+      return { orbit: FRAME.rDiatonic, node: FRAME.nodeDiatonic };
     case 2:
-      return { radius: FRAME.rSecondary, node: FRAME.nodeSecondary };
+      return { orbit: FRAME.rSecondary, node: FRAME.nodeSecondary };
     case 3:
-      return { radius: FRAME.rBorrowed, node: FRAME.nodeBorrowed };
+      return { orbit: FRAME.rBorrowed, node: FRAME.nodeBorrowed };
     case 4:
-      return { radius: FRAME.rPivot, node: FRAME.nodePivot };
+      return { orbit: FRAME.rPivot, node: FRAME.nodePivot };
   }
 }
 
-export function layoutContinuations(moves: Continuation[], _key: KeyContext): PlacedChord[] {
-  return moves.flatMap((move) => {
-    const angle = angleForRoman(move.roman);
-    if (Number.isNaN(angle)) return [];
+export function layoutKey(symbol: string, group: string): string {
+  return `${symbol}|${group}`;
+}
+
+/** Minimum angular gap, in degrees, so disks stay 12px apart on this orbit. */
+export function minGapDegrees(nodeRadius: number, orbit: number): number {
+  return ((nodeRadius * 2 + 12) / orbit) * (180 / Math.PI);
+}
+
+/**
+ * Opens a cluster into a fan around its mean angle. Isolated nodes stay put,
+ * which keeps the designer's degree angles when nothing collides.
+ */
+export function spreadAngles(input: number[], minGap: number): number[] {
+  const count = input.length;
+  const normalized = input.map((angle) => normAngle(angle));
+  if (count <= 1) return normalized;
+
+  const order = normalized.map((angle, index) => ({ angle, index })).sort((a, b) => a.angle - b.angle);
+  const parent = order.map((_, index) => index);
+  const find = (index: number): number => (parent[index] === index ? index : (parent[index] = find(parent[index])));
+  const unite = (a: number, b: number) => {
+    const pa = find(a);
+    const pb = find(b);
+    if (pa !== pb) parent[pb] = pa;
+  };
+
+  for (let index = 0; index < count; index += 1) {
+    const next = (index + 1) % count;
+    const gap = next === 0 ? order[0].angle + 360 - order[index].angle : order[next].angle - order[index].angle;
+    if (gap < minGap - 1e-6) unite(index, next);
+  }
+
+  const clusters = new Map<number, number[]>();
+  for (let index = 0; index < count; index += 1) {
+    const root = find(index);
+    const list = clusters.get(root) ?? [];
+    list.push(index);
+    clusters.set(root, list);
+  }
+
+  const result = [...normalized];
+  for (const members of clusters.values()) {
+    if (members.length < 2) continue;
+    const sorted = [...members].sort((a, b) => order[a].angle - order[b].angle);
+    let sx = 0;
+    let sy = 0;
+    for (const member of sorted) {
+      const rad = (order[member].angle * Math.PI) / 180;
+      sx += Math.cos(rad);
+      sy += Math.sin(rad);
+    }
+    const mean = normAngle((Math.atan2(sy, sx) * 180) / Math.PI);
+    sorted.forEach((member, offset) => {
+      const shift = (offset - (sorted.length - 1) / 2) * minGap;
+      result[order[member].index] = normAngle(mean + shift);
+    });
+  }
+  return result;
+}
+
+function chordDistance(a: { x: number; y: number; r: number }, b: { x: number; y: number; r: number }): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function labelAnchor(angle: number): "start" | "middle" | "end" {
+  const value = normAngle(angle);
+  if (value > 20 && value < 160) return "start";
+  if (value > 200 && value < 340) return "end";
+  return "middle";
+}
+
+export function layoutContinuations(moves: Continuation[], key: KeyContext): PlacedChord[] {
+  const drafted = moves.flatMap((move) => {
     const ring = RING_OF[move.group];
-    const { radius, node } = ringRadius(ring);
-    const point = polar(FRAME.c, FRAME.c, radius, angle);
-    return [{ continuation: move, x: point.x, y: point.y, r: node, ring, angle }];
+    const metrics = ringMetrics(ring);
+    const raw = move.group === "pivot" ? pivotAngle(key, move.nextKey) : angleForRoman(move.roman);
+    if (Number.isNaN(raw)) return [];
+    return [{ move, ring, orbit: metrics.orbit, r: metrics.node, angle: normAngle(raw) }];
+  });
+
+  const byRing = new Map<1 | 2 | 3 | 4, typeof drafted>();
+  for (const item of drafted) {
+    const list = byRing.get(item.ring) ?? [];
+    list.push(item);
+    byRing.set(item.ring, list);
+  }
+
+  for (const list of byRing.values()) {
+    let gap = minGapDegrees(list[0]?.r ?? 17, list[0]?.orbit ?? 1);
+    let angles = spreadAngles(
+      list.map((item) => item.angle),
+      gap,
+    );
+    let radius = list[0]?.r ?? 17;
+    const orbit = list[0]?.orbit ?? 1;
+    const points = () =>
+      angles.map((angle) => ({
+        ...polar(FRAME.c, FRAME.c, orbit, angle),
+        r: radius,
+      }));
+    let placed = points();
+    const collided = () =>
+      placed.some((point, index) => placed.slice(index + 1).some((other) => chordDistance(point, other) < point.r + other.r + 11.5));
+    if (collided() && radius > 17) {
+      radius = Math.max(17, radius * 0.9);
+      gap = minGapDegrees(radius, orbit);
+      angles = spreadAngles(
+        list.map((item) => item.angle),
+        gap,
+      );
+      placed = points();
+    }
+    list.forEach((item, index) => {
+      item.angle = angles[index] ?? item.angle;
+      item.r = radius;
+    });
+  }
+
+  return drafted.map((item) => {
+    const point = polar(FRAME.c, FRAME.c, item.orbit, item.angle);
+    const placed: PlacedChord = {
+      continuation: item.move,
+      x: point.x,
+      y: point.y,
+      r: item.r,
+      ring: item.ring,
+      orbit: item.orbit,
+      angle: item.angle,
+    };
+    if (item.move.group === "pivot") {
+      const outward = item.orbit + item.r + 14;
+      const outwardPoint = polar(FRAME.c, FRAME.c, outward, item.angle);
+      const clips =
+        outwardPoint.x < 28 || outwardPoint.x > FRAME.size - 28 || outwardPoint.y < 16 || outwardPoint.y > FRAME.size - 18;
+      const radius = clips ? item.orbit - item.r - 12 : outward;
+      const labelPoint = polar(FRAME.c, FRAME.c, radius, item.angle);
+      placed.label = {
+        x: labelPoint.x,
+        y: labelPoint.y,
+        anchor: labelAnchor(item.angle),
+      };
+    }
+    return placed;
   });
 }
 
-/** Bottom of the circle sits between IV and V, so the ring name does not cover a degree. */
-export function ringLabels(): RingLabel[] {
-  const specs: { id: string; text: string; radius: number; node: number }[] = [
-    { id: "diatonic", text: "Diatônico", radius: FRAME.rDiatonic, node: FRAME.nodeDiatonic },
-    { id: "secondary", text: "Secundária", radius: FRAME.rSecondary, node: FRAME.nodeSecondary },
-    { id: "borrowed", text: "Empréstimo", radius: FRAME.rBorrowed, node: FRAME.nodeBorrowed },
-    { id: "pivot", text: "Modulação", radius: FRAME.rPivot, node: FRAME.nodePivot },
-  ];
-  return specs.map((spec) => {
-    const point = polar(FRAME.c, FRAME.c, spec.radius - spec.node - 13, 180);
-    return { id: spec.id, text: spec.text, x: point.x, y: point.y };
-  });
+function angularDistance(a: number, b: number): number {
+  const delta = Math.abs(normAngle(a) - normAngle(b));
+  return Math.min(delta, 360 - delta);
 }
 
-export function degreeRays(): { x1: number; y1: number; x2: number; y2: number }[] {
-  return Array.from({ length: 7 }, (_, index) => {
-    const angle = index * DEGREE_STEP;
-    const inner = polar(FRAME.c, FRAME.c, FRAME.centerR + 8, angle);
-    const outer = polar(FRAME.c, FRAME.c, FRAME.rPivot + FRAME.nodePivot + 8, angle);
-    return { x1: inner.x, y1: inner.y, x2: outer.x, y2: outer.y };
-  });
+export function ghostForRoman(roman: string, occupiedAngles: number[]): { x: number; y: number } | null {
+  const angle = angleForRoman(roman);
+  if (Number.isNaN(angle)) return null;
+  if (occupiedAngles.some((occupied) => angularDistance(occupied, angle) < 1)) return null;
+  return polar(FRAME.c, FRAME.c, FRAME.rDiatonic, angle);
 }
+
+export const SECTORS = [
+  { id: "tonic", label: "TÔNICA", angle: 0 },
+  { id: "dominant", label: "DOMINANTE", angle: 120 },
+  { id: "subdominant", label: "SUBDOMINANTE", angle: 240 },
+] as const;
+
+export const SECTOR_RAYS = [60, 180, 300] as const;

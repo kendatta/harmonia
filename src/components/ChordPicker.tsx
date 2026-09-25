@@ -4,7 +4,7 @@ import type { KeyContext, Quality } from "../theory/types";
 import { useHarmonyStore } from "../store/useHarmonyStore";
 import { Button } from "./ui/button";
 
-export function ChordPicker() {
+export function ChordPicker({ onApplied }: { onApplied?: () => void }) {
   const applyStart = useHarmonyStore((state) => state.applyStart);
   const [spelling, setSpelling] = useState<"sharp" | "flat">("sharp");
   const [root, setRoot] = useState("C");
@@ -24,6 +24,7 @@ export function ChordPicker() {
       onSubmit={(event) => {
         event.preventDefault();
         applyStart(root, quality, activeKey);
+        onApplied?.();
       }}
     >
       <div className="panel-head">

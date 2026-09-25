@@ -205,6 +205,21 @@ describe("identidade e análise", () => {
     }
   });
 
+  it("destaca continuações diferentes para G e para Mi bemol em Dó maior", () => {
+    const strongIds = (symbol: string) =>
+      getContinuations(symbol, Cmaj)
+        .filter((move) => move.strong)
+        .map((move) => move.id)
+        .sort();
+    const fromG = strongIds("G");
+    const fromEb = strongIds("Eb");
+    expect(fromG).not.toEqual(fromEb);
+    expect(fromG).toContain("diatonic-I");
+    expect(fromEb).not.toContain("diatonic-I");
+    expect(fromEb).toContain("diatonic-ii");
+    expect(fromG).not.toContain("diatonic-ii");
+  });
+
   it("analisa G7 como V7 e Cmaj7 como IΔ em C maior", () => {
     expect(describeChordInKey("G7", Cmaj)).toMatchObject({ roman: "V7", group: "dominant" });
     expect(describeChordInKey("Cmaj7", Cmaj)).toMatchObject({ roman: "IΔ", group: "tonic" });

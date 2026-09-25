@@ -98,7 +98,7 @@ async function ensure(): Promise<void> {
     const instance = new Tone.Sampler({
       urls: SALAMANDER,
       baseUrl: "https://tonejs.github.io/audio/salamander/",
-      release: 1,
+      release: 0.08,
       onload: () => finish(true),
       onerror: () => finish(false),
     });

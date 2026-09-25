@@ -98,6 +98,24 @@ export function formatNotes(notes: string[]): string {
 }
 
 /** Close voicing from C3 upward, so the piano sample sits in a musical register. */
+export function voicedMidis(pitchClasses: string[]): number[] {
+  return voiceChord(pitchClasses).map((note) => {
+    const midi = Note.midi(note);
+    if (midi === null) throw new Error(`Nota inválida: ${note}`);
+    return midi;
+  });
+}
+
+/** C that begins a 2-octave window containing every voiced MIDI note. */
+export function keyboardStart(midis: number[]): number {
+  if (midis.length === 0) return 48;
+  const lowest = Math.min(...midis);
+  let start = lowest - (lowest % 12);
+  const highest = Math.max(...midis);
+  while (highest > start + 23) start += 12;
+  return start;
+}
+
 export function voiceChord(pitchClasses: string[]): string[] {
   if (pitchClasses.length === 0) return [];
   const chromas = pitchClasses.map((pitch) => {

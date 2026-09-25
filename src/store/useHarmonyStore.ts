@@ -25,6 +25,20 @@ export interface Preset {
   createdAt: number;
 }
 
+export interface Sounding {
+  startedAt: number;
+  durationMs: number;
+  /** Set when playback is paused so the arc and the segment freeze together. */
+  frozen?: number;
+}
+
+export interface TransitionFrom {
+  x: number;
+  y: number;
+  r: number;
+  symbol: string;
+}
+
 interface HistoryEntry {
   center: HarmonyChord;
   key: KeyContext;
@@ -36,15 +50,17 @@ interface HarmonyState {
   history: HistoryEntry[];
   progression: ProgressionStep[];
   presets: Preset[];
-  secondsPerChord: number;
+  playbackRate: number;
   isPlaying: boolean;
+  paused: boolean;
   playIndex: number;
   playGen: number;
   playingPresetId: string | null;
+  selectedPresetId: string | null;
   playbackStep: ProgressionStep | null;
   inspected: ProgressionStep;
-  /** Epoch ms of the last single-chord attack (click, back, or new center). */
-  audibleAt: number;
+  sounding: Sounding | null;
+  transitionFrom: TransitionFrom | null;
   applyStart: (root: string, quality: Quality, key: KeyContext) => void;
   chooseContinuation: (move: Continuation) => void;
   replayCenter: () => void;
@@ -52,18 +68,20 @@ interface HarmonyState {
   savePreset: (name: string) => boolean;
   deletePreset: (id: string) => void;
   loadPreset: (id: string) => void;
-  playProgression: () => void;
-  playPreset: (id: string) => void;
+  selectPreset: (id: string | null) => void;
+  playToggle: () => void;
   stopPlayback: () => void;
-  faster: () => void;
-  slower: () => void;
+  setPlaybackRate: (rate: number) => void;
+  setTransitionFrom: (from: TransitionFrom | null) => void;
 }
 
 const STORAGE_KEY = "navegador-harmonico.presets.v1";
-export const SPEEDS = [0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4] as const;
+const CLICK_MS = 3000;
 
 const initialKey: KeyContext = { tonic: "C", mode: "major" };
 const initialChord = chordOf("C");
+
+let attackToken = 0;
 
 function chordOf(symbol: string): HarmonyChord {
   return { symbol, notes: notesOfSymbol(symbol) };
@@ -119,76 +137,109 @@ function writePresets(presets: Preset[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(presets));
 }
 
-function adjacentSpeed(current: number, direction: -1 | 1): number {
-  let index = 0;
-  let best = Number.POSITIVE_INFINITY;
-  SPEEDS.forEach((speed, candidate) => {
-    const distance = Math.abs(speed - current);
-    if (distance < best) {
-      best = distance;
-      index = candidate;
-    }
-  });
-  const next = Math.min(SPEEDS.length - 1, Math.max(0, index + direction));
-  return SPEEDS[next];
-}
-
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function clampRate(rate: number): number {
+  const stepped = Math.round(rate * 4) / 4;
+  return Math.min(2, Math.max(0.5, stepped));
 }
 
 export const useHarmonyStore = create<HarmonyState>((set, get) => {
   const initialStep = stepFrom(initialChord.symbol, initialKey);
 
-  const interrupt = () => {
-    if (!get().isPlaying && !get().playbackStep) return;
+  const attack = (notes: string[], durationMs = CLICK_MS) => {
+    const token = ++attackToken;
+    void playChord(notes, durationMs / 1000)
+      .catch(() => undefined)
+      .finally(() => {
+        if (token !== attackToken) return;
+        set({ sounding: { startedAt: performance.now(), durationMs } });
+      });
+  };
+
+  const selectedSteps = (): ProgressionStep[] => {
+    const id = get().selectedPresetId;
+    if (id) {
+      const preset = get().presets.find((item) => item.id === id);
+      if (preset) return preset.steps;
+    }
+    return get().progression;
+  };
+
+  const killTransport = () => {
+    attackToken += 1;
     silence();
     set((state) => ({
       playGen: state.playGen + 1,
       isPlaying: false,
+      paused: false,
       playIndex: -1,
       playingPresetId: null,
       playbackStep: null,
+      sounding: null,
     }));
   };
 
   const runPlayback = async (steps: ProgressionStep[], presetId: string | null) => {
     if (steps.length === 0) return;
-    interrupt();
+    silence();
+    attackToken += 1;
     const gen = get().playGen + 1;
     set({
       playGen: gen,
       isPlaying: true,
+      paused: false,
       playIndex: 0,
       playingPresetId: presetId,
       playbackStep: steps[0] ?? null,
+      sounding: null,
     });
 
-    for (let index = 0; index < steps.length; index += 1) {
+    for (let index = 0; index < steps.length; ) {
+      if (get().playGen !== gen) return;
+      while (get().paused && get().playGen === gen) await sleep(40);
       if (get().playGen !== gen) return;
       const step = steps[index];
       if (!step) return;
-      set({ playIndex: index, playbackStep: step });
-      const seconds = get().secondsPerChord;
+      const seconds = 3 / get().playbackRate;
+      const durationMs = seconds * 1000;
+      set({ playIndex: index, playbackStep: step, playingPresetId: presetId });
       try {
-        await playChord(step.notes, Math.min(seconds * 0.92, seconds));
+        await playChord(step.notes, seconds);
       } catch {
         // Audio may be blocked; the score still advances.
       }
-      const started = performance.now();
-      while (performance.now() - started < seconds * 1000) {
+      if (get().playGen !== gen) return;
+      const startedAt = performance.now();
+      set({ sounding: { startedAt, durationMs } });
+      let pausedMidway = false;
+      while (performance.now() - startedAt < durationMs) {
         if (get().playGen !== gen) return;
+        if (get().paused) {
+          silence();
+          const frozen = Math.min(1, (performance.now() - startedAt) / durationMs);
+          set({ sounding: { startedAt, durationMs, frozen } });
+          pausedMidway = true;
+          break;
+        }
         await sleep(40);
       }
+      if (get().playGen !== gen) return;
+      if (pausedMidway) continue;
+      index += 1;
     }
 
     if (get().playGen !== gen) return;
     const last = steps[steps.length - 1];
     set({
       isPlaying: false,
+      paused: false,
       playIndex: -1,
       playingPresetId: null,
       playbackStep: null,
+      sounding: null,
       inspected: last ?? get().inspected,
     });
   };
@@ -199,17 +250,20 @@ export const useHarmonyStore = create<HarmonyState>((set, get) => {
     history: [],
     progression: [initialStep],
     presets: readPresets(),
-    secondsPerChord: 2,
+    playbackRate: 1,
     isPlaying: false,
+    paused: false,
     playIndex: -1,
     playGen: 0,
     playingPresetId: null,
+    selectedPresetId: null,
     playbackStep: null,
     inspected: initialStep,
-    audibleAt: 0,
+    sounding: null,
+    transitionFrom: null,
 
     applyStart: (root, quality, key) => {
-      interrupt();
+      killTransport();
       const symbol = symbolFrom(root, quality);
       const center = chordOf(symbol);
       const step = stepFrom(symbol, key);
@@ -219,13 +273,13 @@ export const useHarmonyStore = create<HarmonyState>((set, get) => {
         history: [],
         progression: [step],
         inspected: step,
-        audibleAt: Date.now(),
+        transitionFrom: null,
       });
-      void playChord(center.notes, 3).catch(() => undefined);
+      attack(center.notes);
     },
 
     chooseContinuation: (move) => {
-      interrupt();
+      killTransport();
       const center = chordOf(move.symbol);
       const step: ProgressionStep = {
         symbol: center.symbol,
@@ -241,26 +295,26 @@ export const useHarmonyStore = create<HarmonyState>((set, get) => {
         key: move.nextKey,
         progression: [...state.progression, step],
         inspected: step,
-        audibleAt: Date.now(),
       }));
-      void playChord(center.notes, 3).catch(() => undefined);
+      attack(center.notes);
     },
 
     replayCenter: () => {
-      const { center, key, isPlaying } = get();
-      if (isPlaying) {
-        interrupt();
+      if (get().isPlaying) {
+        get().stopPlayback();
         return;
       }
-      const step = stepFrom(center.symbol, key);
-      set({ inspected: step, audibleAt: Date.now() });
-      void playChord(center.notes, 3).catch(() => undefined);
+      const overlay = get().paused ? get().playbackStep : null;
+      const notes = overlay?.notes ?? get().center.notes;
+      const inspected = overlay ?? stepFrom(get().center.symbol, get().key);
+      set({ inspected });
+      attack(notes);
     },
 
     back: () => {
-      const { history, progression } = get();
-      if (history.length === 0) return;
-      interrupt();
+      const { history, progression, isPlaying } = get();
+      if (history.length === 0 || isPlaying) return;
+      killTransport();
       const previous = history[history.length - 1];
       if (!previous) return;
       const step = stepFrom(previous.center.symbol, previous.key);
@@ -270,9 +324,8 @@ export const useHarmonyStore = create<HarmonyState>((set, get) => {
         center: previous.center,
         key: previous.key,
         inspected: step,
-        audibleAt: Date.now(),
       });
-      void playChord(previous.center.notes, 3).catch(() => undefined);
+      attack(previous.center.notes);
     },
 
     savePreset: (name) => {
@@ -292,8 +345,11 @@ export const useHarmonyStore = create<HarmonyState>((set, get) => {
 
     deletePreset: (id) => {
       const presets = get().presets.filter((preset) => preset.id !== id);
-      if (get().playingPresetId === id) interrupt();
-      set({ presets });
+      if (get().playingPresetId === id) killTransport();
+      set({
+        presets,
+        selectedPresetId: get().selectedPresetId === id ? null : get().selectedPresetId,
+      });
       writePresets(presets);
     },
 
@@ -301,31 +357,64 @@ export const useHarmonyStore = create<HarmonyState>((set, get) => {
       const preset = get().presets.find((item) => item.id === id);
       const first = preset?.steps[0];
       if (!preset || !first) return;
-      interrupt();
+      killTransport();
       set({
         center: { symbol: first.symbol, notes: first.notes },
         key: first.key,
         history: [],
         progression: preset.steps,
         inspected: first,
+        selectedPresetId: null,
+        transitionFrom: null,
       });
     },
 
-    playProgression: () => {
-      void runPlayback(get().progression, null);
+    selectPreset: (id) => {
+      if (get().isPlaying) return;
+      if (get().paused) {
+        attackToken += 1;
+        silence();
+        set((state) => ({ playGen: state.playGen + 1 }));
+      }
+      set({ selectedPresetId: id, paused: false, playIndex: -1, playbackStep: null, sounding: null });
     },
 
-    playPreset: (id) => {
-      const preset = get().presets.find((item) => item.id === id);
-      if (!preset) return;
-      void runPlayback(preset.steps, id);
+    playToggle: () => {
+      if (get().isPlaying) {
+        silence();
+        const sounding = get().sounding;
+        const frozen = sounding ? Math.min(1, (performance.now() - sounding.startedAt) / sounding.durationMs) : 0;
+        set({
+          isPlaying: false,
+          paused: true,
+          sounding: sounding ? { ...sounding, frozen } : null,
+        });
+        return;
+      }
+      if (get().paused) {
+        set({ paused: false, isPlaying: true, sounding: null });
+        return;
+      }
+      const steps = selectedSteps();
+      void runPlayback(steps, get().selectedPresetId);
     },
 
     stopPlayback: () => {
-      interrupt();
+      attackToken += 1;
+      silence();
+      set((state) => ({
+        playGen: state.playGen + 1,
+        isPlaying: false,
+        paused: false,
+        playIndex: 0,
+        playingPresetId: null,
+        playbackStep: null,
+        sounding: null,
+      }));
     },
 
-    faster: () => set((state) => ({ secondsPerChord: adjacentSpeed(state.secondsPerChord, -1) })),
-    slower: () => set((state) => ({ secondsPerChord: adjacentSpeed(state.secondsPerChord, 1) })),
+    setPlaybackRate: (rate) => set({ playbackRate: clampRate(rate) }),
+
+    setTransitionFrom: (from) => set({ transitionFrom: from }),
   };
 });
