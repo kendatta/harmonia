@@ -33,22 +33,22 @@ O traço mais firme liga o centro a um passo provável a partir da função atua
 
 ## Modelo harmônico
 
-O tom de referência é maior ou menor. A partir dele o mapa oferece quatro famílias, desenhadas em anéis e cores diferentes:
+O tom de referência é maior ou menor. O mapa é um SVG de 720×720 com quatro anéis e um ângulo fixo por grau da escala: I no alto, os outros no sentido horário, um passo de 360°/7. O mesmo grau fica no mesmo raio em todos os anéis (V, V7/V e a quinta acima alinham). Cada família tem o seu anel e um rótulo. Cor nunca é o único código: no anel diatônico, tônica, subdominante e dominante usam formas diferentes (círculo, quadrado, losango).
 
 | Família | Onde fica | O que entra |
 | --- | --- | --- |
-| Funções diatônicas | anel interno | Tônica (I, iii, vi ou i, III, VI), subdominante (ii, IV ou ii°, iv) e dominante (V, vii°). No menor, o V e o vii° vêm da escala menor harmônica. |
-| Dominante secundária | anel do meio, à direita | V7 de cada grau maior ou menor, exceto a tônica e os diminutos. Ex.: em C maior, V7/V = D7. O tom não muda. |
-| Empréstimo modal | anel do meio, à esquerda | No maior: iv, bIII, bVI e bVII do menor natural paralelo. No menor: v e VII do modo natural, mais I e IV do maior paralelo. O tom não muda. |
-| Modulação | anel externo, e o paralelo no sul do anel interno | Um acorde-porta para o relativo, o paralelo e os vizinhos a uma quinta acima e abaixo no ciclo de quintas (mesmo modo). Esse clique troca o tom. |
-
-O anel externo também mostra o ciclo de quintas a partir da tônica, só como bússola. O acorde do meio do anel externo não é o trítono: o **paralelo** fica no vão sul do anel diatônico, porque não é um vizinho de quinta.
+| Funções diatônicas | anel 1, rótulo Diatônico | Tônica (círculo: I, iii, vi ou i, III, VI), subdominante (quadrado: ii, IV ou ii°, iv) e dominante (losango: V, vii°). No menor, o V e o vii° vêm da escala menor harmônica. |
+| Dominante secundária | anel 2, rótulo Secundária, octógono | V7 de cada grau maior ou menor, exceto a tônica e os diminutos. Ex.: em C maior, V7/V = D7. O tom não muda. |
+| Empréstimo modal | anel 3, rótulo Empréstimo, hexágono | No maior: iv, bIII, bVI e bVII do menor natural paralelo. No menor: v e VII do modo natural, mais I e IV do maior paralelo. O tom não muda. |
+| Modulação | anel 4, rótulo Modulação, círculo duplo | Um acorde-porta para o relativo, o paralelo e os vizinhos a uma quinta acima e abaixo (mesmo modo). Esse clique troca o tom. O paralelo fica no raio do grau I, porque é a tônica do outro modo, não um vizinho de quinta. |
 
 Quando o mesmo símbolo aparece duas vezes, a diferença é o destino. Exemplo em C maior: **Am · vi** permanece em C; **Am · relativo** passa a ser i em A menor. O algarismo romano de cada opção é relativo ao tom *antes* do passo. Depois da modulação, o centro passa a ser lido no tom novo.
 
 Acorde com sétima da dominante (como G7) sugere o tom uma quinta abaixo. Maior e menor sugerem a si mesmos como tônica. Dá para corrigir o tom na partida.
 
-A grafia segue o tom: F# maior usa sustenidos (o vii° é E#°); Bb e Db maior usam bemóis. Algumas dominantes secundárias em tons com muitos sustenidos mostram dobrados (a terça de D#7 é F##). É a grafia correta daquele campo, não um enarmônico “mais fácil”.
+A grafia segue o tom: F# maior usa sustenidos (o vii° é E♯°); Bb e Db maior usam bemóis. Algumas dominantes secundárias em tons com muitos sustenidos mostram dobrados (a terça de D♯7 é F𝄪). É a grafia correta daquele campo, não um enarmônico “mais fácil”. Na tela, bemol e sustenido são glifos (♭ ♯ 𝄫 𝄪), não as letras b e #.
+
+A interface usa Geist e Geist Mono sobre um fundo grafite. A troca de centro anima em 400 ms, com uma curva que não ultrapassa o destino.
 
 ## Tecnologias
 

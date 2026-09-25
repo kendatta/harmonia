@@ -1,46 +1,77 @@
-import { Note } from "tonal";
-import type { Continuation, KeyContext, PivotKind } from "./types";
+import type { Continuation, Group, KeyContext } from "./types";
 
+/** ViewBox is fixed at 720. Four rings, one fixed angle per scale degree. */
 export const FRAME = {
   size: 720,
   c: 360,
-  centerR: 64,
-  rDiatonic: 158,
-  rColor: 230,
-  rPivot: 308,
-  nodeDiatonic: 30,
-  nodeColor: 27,
-  nodePivot: 34,
-  nodeParallel: 32,
+  centerR: 52,
+  rDiatonic: 120,
+  rSecondary: 184,
+  rBorrowed: 248,
+  rPivot: 312,
+  nodeDiatonic: 24,
+  nodeSecondary: 22,
+  nodeBorrowed: 22,
+  nodePivot: 24,
 } as const;
 
-const SHARP_WHEEL = ["C", "G", "D", "A", "E", "B", "F#", "C#", "G#", "D#", "A#", "F"];
-const FLAT_WHEEL = ["C", "G", "D", "A", "E", "B", "Gb", "Db", "Ab", "Eb", "Bb", "F"];
+export const CENTER_TRANSITION_MS = 400;
 
-const FUNCTION_SECTORS = {
-  tonic: { start: 310, span: 100 },
-  dominant: { start: 70, span: 100 },
-  subdominant: { start: 190, span: 100 },
-} as const;
+/**
+ * Cubic-bezier control points. Every component stays in [0, 1], so the
+ * curve's convex hull cannot leave that range: the motion eases out and
+ * does not overshoot or bounce.
+ */
+export const CENTER_EASE = [0.22, 1, 0.36, 1] as const;
 
-const COLOR_SECTORS = {
-  secondary: { start: 48, span: 120 },
-  borrowed: { start: 200, span: 120 },
-} as const;
+export const DEGREE_STEP = 360 / 7;
+
+const DEGREE_INDEX: Record<string, number> = {
+  I: 0,
+  i: 0,
+  II: 1,
+  ii: 1,
+  "ii°": 1,
+  bII: 1,
+  III: 2,
+  iii: 2,
+  bIII: 2,
+  IV: 3,
+  iv: 3,
+  V: 4,
+  v: 4,
+  VI: 5,
+  vi: 5,
+  bVI: 5,
+  VII: 6,
+  vii: 6,
+  "vii°": 6,
+  bVII: 6,
+};
+
+const RING_OF: Record<Group, 1 | 2 | 3 | 4> = {
+  tonic: 1,
+  subdominant: 1,
+  dominant: 1,
+  secondary: 2,
+  borrowed: 3,
+  pivot: 4,
+};
 
 export interface PlacedChord {
   continuation: Continuation;
   x: number;
   y: number;
   r: number;
+  ring: 1 | 2 | 3 | 4;
+  angle: number;
 }
 
-export interface FifthMarker {
-  label: string;
-  angle: number;
+export interface RingLabel {
+  id: string;
+  text: string;
   x: number;
   y: number;
-  tonic: boolean;
 }
 
 export function polar(cx: number, cy: number, radius: number, degFromTop: number): { x: number; y: number } {
@@ -51,110 +82,56 @@ export function polar(cx: number, cy: number, radius: number, degFromTop: number
   };
 }
 
-export function arcPath(cx: number, cy: number, radius: number, start: number, span: number): string {
-  const from = polar(cx, cy, radius, start);
-  const to = polar(cx, cy, radius, start + span);
-  const large = span > 180 ? 1 : 0;
-  return `M ${from.x} ${from.y} A ${radius} ${radius} 0 ${large} 1 ${to.x} ${to.y}`;
+export function angleForRoman(roman: string): number {
+  const target = roman.includes("/") ? (roman.split("/").pop() ?? roman) : roman;
+  const index = DEGREE_INDEX[target];
+  if (index === undefined) return Number.NaN;
+  return index * DEGREE_STEP;
 }
 
-function norm(deg: number): number {
-  return ((deg % 360) + 360) % 360;
-}
-
-function anglesInSector(start: number, span: number, count: number, maxStep: number): number[] {
-  if (count <= 0) return [];
-  if (count === 1) return [norm(start + span / 2)];
-  const step = Math.min(maxStep, span / count);
-  const used = step * (count - 1);
-  const origin = start + (span - used) / 2;
-  return Array.from({ length: count }, (_, index) => norm(origin + index * step));
-}
-
-export function pivotAngle(kind: PivotKind, mode: KeyContext["mode"]): number {
-  switch (kind) {
-    case "fifth-up":
-      return 30;
-    case "fifth-down":
-      return 330;
-    case "parallel":
-      return 180;
-    case "relative":
-      return mode === "major" ? 90 : 270;
+function ringRadius(ring: 1 | 2 | 3 | 4): { radius: number; node: number } {
+  switch (ring) {
+    case 1:
+      return { radius: FRAME.rDiatonic, node: FRAME.nodeDiatonic };
+    case 2:
+      return { radius: FRAME.rSecondary, node: FRAME.nodeSecondary };
+    case 3:
+      return { radius: FRAME.rBorrowed, node: FRAME.nodeBorrowed };
+    case 4:
+      return { radius: FRAME.rPivot, node: FRAME.nodePivot };
   }
 }
 
-export function fifthsWheel(tonic: string): string[] {
-  const preferFlats = tonic.includes("b") || tonic === "F";
-  const circle = preferFlats ? FLAT_WHEEL : SHARP_WHEEL;
-  const chroma = Note.chroma(tonic);
-  let index = circle.findIndex((note) => note === tonic);
-  if (index < 0) index = circle.findIndex((note) => Note.chroma(note) === chroma);
-  if (index < 0) index = 0;
-  return [...circle.slice(index), ...circle.slice(0, index)];
-}
-
-export function layoutContinuations(moves: Continuation[], key: KeyContext): PlacedChord[] {
-  const { c, rDiatonic, rColor, rPivot, nodeDiatonic, nodeColor, nodePivot, nodeParallel } = FRAME;
-  const placed: PlacedChord[] = [];
-
-  const functional = (["tonic", "subdominant", "dominant"] as const).map((group) => ({
-    group,
-    moves: moves.filter((move) => move.group === group),
-  }));
-
-  for (const bucket of functional) {
-    const sector = FUNCTION_SECTORS[bucket.group];
-    const angles = anglesInSector(sector.start, sector.span, bucket.moves.length, 36);
-    bucket.moves.forEach((move, index) => {
-      const point = polar(c, c, rDiatonic, angles[index] ?? sector.start);
-      placed.push({ continuation: move, x: point.x, y: point.y, r: nodeDiatonic });
-    });
-  }
-
-  for (const group of ["secondary", "borrowed"] as const) {
-    const bucket = moves.filter((move) => move.group === group);
-    const sector = COLOR_SECTORS[group];
-    const angles = anglesInSector(sector.start, sector.span, bucket.length, 26);
-    bucket.forEach((move, index) => {
-      const point = polar(c, c, rColor, angles[index] ?? sector.start);
-      placed.push({ continuation: move, x: point.x, y: point.y, r: nodeColor });
-    });
-  }
-
-  for (const move of moves) {
-    if (move.group !== "pivot" || !move.pivotKind) continue;
-    const angle = pivotAngle(move.pivotKind, key.mode);
-    const onDiatonicRing = move.pivotKind === "parallel";
-    const point = polar(c, c, onDiatonicRing ? rDiatonic : rPivot, angle);
-    placed.push({
-      continuation: move,
-      x: point.x,
-      y: point.y,
-      r: onDiatonicRing ? nodeParallel : nodePivot,
-    });
-  }
-
-  return placed;
-}
-
-export function fifthMarkers(key: KeyContext, nodes: PlacedChord[]): FifthMarker[] {
-  const wheel = fifthsWheel(key.tonic);
-  const blocked = new Set(
-    nodes
-      .filter((node) => node.continuation.pivotKind && node.continuation.pivotKind !== "parallel")
-      .map((node) => pivotAngle(node.continuation.pivotKind!, key.mode)),
-  );
-
-  return wheel.flatMap((label, index) => {
-    const angle = index * 30;
-    if ([...blocked].some((used) => angularDistance(used, angle) < 12)) return [];
-    const point = polar(FRAME.c, FRAME.c, FRAME.rPivot, angle);
-    return [{ label, angle, x: point.x, y: point.y, tonic: index === 0 }];
+export function layoutContinuations(moves: Continuation[], _key: KeyContext): PlacedChord[] {
+  return moves.flatMap((move) => {
+    const angle = angleForRoman(move.roman);
+    if (Number.isNaN(angle)) return [];
+    const ring = RING_OF[move.group];
+    const { radius, node } = ringRadius(ring);
+    const point = polar(FRAME.c, FRAME.c, radius, angle);
+    return [{ continuation: move, x: point.x, y: point.y, r: node, ring, angle }];
   });
 }
 
-function angularDistance(a: number, b: number): number {
-  const delta = Math.abs(norm(a) - norm(b));
-  return Math.min(delta, 360 - delta);
+/** Bottom of the circle sits between IV and V, so the ring name does not cover a degree. */
+export function ringLabels(): RingLabel[] {
+  const specs: { id: string; text: string; radius: number; node: number }[] = [
+    { id: "diatonic", text: "Diatônico", radius: FRAME.rDiatonic, node: FRAME.nodeDiatonic },
+    { id: "secondary", text: "Secundária", radius: FRAME.rSecondary, node: FRAME.nodeSecondary },
+    { id: "borrowed", text: "Empréstimo", radius: FRAME.rBorrowed, node: FRAME.nodeBorrowed },
+    { id: "pivot", text: "Modulação", radius: FRAME.rPivot, node: FRAME.nodePivot },
+  ];
+  return specs.map((spec) => {
+    const point = polar(FRAME.c, FRAME.c, spec.radius - spec.node - 13, 180);
+    return { id: spec.id, text: spec.text, x: point.x, y: point.y };
+  });
+}
+
+export function degreeRays(): { x1: number; y1: number; x2: number; y2: number }[] {
+  return Array.from({ length: 7 }, (_, index) => {
+    const angle = index * DEGREE_STEP;
+    const inner = polar(FRAME.c, FRAME.c, FRAME.centerR + 8, angle);
+    const outer = polar(FRAME.c, FRAME.c, FRAME.rPivot + FRAME.nodePivot + 8, angle);
+    return { x1: inner.x, y1: inner.y, x2: outer.x, y2: outer.y };
+  });
 }

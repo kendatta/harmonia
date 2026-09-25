@@ -6,7 +6,7 @@ function Input({ className, type, ...props }: ComponentProps<"input">) {
     <input
       type={type}
       className={cn(
-        "flex h-9 w-full rounded-full border border-[rgba(243,239,230,0.16)] bg-[#101116] px-3 text-sm text-[#f3efe6] outline-none placeholder:text-[#8d887e] focus-visible:ring-2 focus-visible:ring-[#e4c27a]",
+        "flex h-9 w-full rounded-full border border-[var(--line)] bg-[var(--bg-sunken)] px-3 text-sm text-[var(--ink)] outline-none placeholder:text-[var(--muted)] focus-visible:ring-2 focus-visible:ring-[var(--focus)]",
         className,
       )}
       {...props}

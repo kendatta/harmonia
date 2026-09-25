@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inferKey, notesOf, voiceChord } from "./chords";
+import { displayRoman, displaySymbol, formatNotes, inferKey, musicGlyphs, notesOf, voiceChord } from "./chords";
 
 describe("notas dos acordes", () => {
   it("soletra a tríade maior de C", () => {
@@ -42,6 +42,21 @@ describe("tom sugerido", () => {
 
   it("lê Bb7 como dominante de Eb maior", () => {
     expect(inferKey("Bb", "7")).toEqual({ tonic: "Eb", mode: "major" });
+  });
+});
+
+describe("glifos de acidente", () => {
+  it("troca sustenido, bemol e dobrados por sinais reais", () => {
+    expect(musicGlyphs("F#")).toBe("F♯");
+    expect(musicGlyphs("Bb")).toBe("B♭");
+    expect(musicGlyphs("F##")).toBe("F𝄪");
+    expect(musicGlyphs("Bbb")).toBe("B𝄫");
+    expect(musicGlyphs("bIII")).toBe("♭III");
+    expect(musicGlyphs("bvii")).toBe("♭vii");
+    expect(displaySymbol("F#dim")).toBe("F♯°");
+    expect(displaySymbol("Cmaj7")).toBe("CΔ");
+    expect(displayRoman("V7/bVI")).toBe("V7/♭VI");
+    expect(formatNotes(["Bb", "D", "F"])).toBe("B♭ – D – F");
   });
 });
 

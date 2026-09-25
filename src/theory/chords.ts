@@ -52,8 +52,22 @@ export function notesOf(root: string, quality: Quality): string[] {
   return notesOfSymbol(symbolFrom(root, quality));
 }
 
+/** Unicode accidentals so flats and sharps are glyphs, not the letters b and #. */
+export function musicGlyphs(text: string): string {
+  return text
+    .replaceAll("##", "𝄪")
+    .replaceAll("bb", "𝄫")
+    .replaceAll("#", "♯")
+    .replace(/([A-G])b/g, "$1♭")
+    .replace(/b(?=[IViv])/g, "♭");
+}
+
 export function displaySymbol(symbol: string): string {
-  return symbol.replaceAll("maj7", "Δ").replaceAll("dim", "°");
+  return musicGlyphs(symbol.replaceAll("maj7", "Δ").replaceAll("dim", "°"));
+}
+
+export function displayRoman(roman: string): string {
+  return musicGlyphs(roman);
 }
 
 export function qualityLabel(symbol: string): string {
@@ -62,7 +76,7 @@ export function qualityLabel(symbol: string): string {
 }
 
 export function keyLabel(key: KeyContext): string {
-  return `${key.tonic} ${key.mode === "major" ? "maior" : "menor"}`;
+  return `${musicGlyphs(key.tonic)} ${key.mode === "major" ? "maior" : "menor"}`;
 }
 
 export function sameKey(a: KeyContext, b: KeyContext): boolean {
@@ -80,7 +94,7 @@ export function inferKey(root: string, quality: Quality): KeyContext {
 }
 
 export function formatNotes(notes: string[]): string {
-  return notes.join(" – ");
+  return notes.map((note) => musicGlyphs(note)).join(" – ");
 }
 
 /** Close voicing from C3 upward, so the piano sample sits in a musical register. */

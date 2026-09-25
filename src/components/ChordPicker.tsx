@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FLAT_ROOTS, QUALITY_OPTIONS, SHARP_ROOTS, inferKey, keyLabel, symbolFrom } from "../theory/chords";
+import { FLAT_ROOTS, QUALITY_OPTIONS, SHARP_ROOTS, displaySymbol, inferKey, keyLabel, musicGlyphs, symbolFrom } from "../theory/chords";
 import type { KeyContext, Quality } from "../theory/types";
 import { useHarmonyStore } from "../store/useHarmonyStore";
 import { Button } from "./ui/button";
@@ -51,7 +51,7 @@ export function ChordPicker() {
               aria-pressed={root === note}
               onClick={() => setRoot(note)}
             >
-              {note}
+              {musicGlyphs(note)}
             </Button>
           ))}
         </div>
@@ -90,7 +90,7 @@ export function ChordPicker() {
             >
               {(keyRoots as readonly string[]).map((note) => (
                 <option key={note} value={note}>
-                  {note}
+                  {musicGlyphs(note)}
                 </option>
               ))}
             </select>
@@ -123,7 +123,7 @@ export function ChordPicker() {
           </div>
         </div>
         <p className="hint">
-          Sugestão para {symbolFrom(root, quality) || root}: {keyLabel(suggestion)}.
+          Sugestão para {displaySymbol(symbolFrom(root, quality) || root)}: {keyLabel(suggestion)}.
           {keyTouched ? (
             <Button type="button" size="sm" variant="ghost" onClick={() => setKeyTouched(false)}>
               Usar sugestão

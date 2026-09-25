@@ -3,9 +3,9 @@ import { GROUP_COLOR, GROUP_LABEL } from "./groupMeta";
 
 const ITEMS: { group: Group; shape: string }[] = [
   { group: "tonic", shape: "circle" },
-  { group: "subdominant", shape: "circle" },
-  { group: "dominant", shape: "circle" },
-  { group: "secondary", shape: "diamond" },
+  { group: "subdominant", shape: "square" },
+  { group: "dominant", shape: "diamond" },
+  { group: "secondary", shape: "octagon" },
   { group: "borrowed", shape: "hex" },
   { group: "pivot", shape: "double" },
 ];

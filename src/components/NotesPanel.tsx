@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { displaySymbol, formatNotes, qualityLabel } from "../theory/chords";
+import { displayRoman, displaySymbol, formatNotes, qualityLabel } from "../theory/chords";
 import { describeChordInKey } from "../theory/continuations";
 import { useHarmonyStore } from "../store/useHarmonyStore";
 import { GROUP_COLOR, GROUP_LABEL } from "./groupMeta";
@@ -20,7 +20,7 @@ export function NotesPanel() {
       </div>
       <div className="note-hero">
         <span className="note-roman" style={{ color: accent }}>
-          {analysis.roman}
+          {displayRoman(analysis.roman)}
         </span>
         <strong className="note-symbol">{displaySymbol(shown.symbol)}</strong>
         <span className="note-quality">{qualityLabel(shown.symbol)}</span>

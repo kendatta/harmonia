@@ -27,8 +27,8 @@ export function pivotCaption(kind: "relative" | "parallel" | "fifth-up" | "fifth
     case "parallel":
       return "paralelo";
     case "fifth-up":
-      return "quinta acima";
+      return "quinta ↑";
     case "fifth-down":
-      return "quinta abaixo";
+      return "quinta ↓";
   }
 }

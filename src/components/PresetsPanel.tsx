@@ -1,4 +1,4 @@
-import { displaySymbol } from "../theory/chords";
+import { displayRoman, displaySymbol } from "../theory/chords";
 import { SPEEDS, useHarmonyStore } from "../store/useHarmonyStore";
 import { GROUP_COLOR } from "./groupMeta";
 import { Button } from "./ui/button";
@@ -39,7 +39,7 @@ export function PresetsPanel() {
           {isPlaying && playbackStep ? (
             <span>
               Tocando agora: <strong>{displaySymbol(playbackStep.symbol)}</strong>
-              <em> {playbackStep.roman}</em>
+              <em> {displayRoman(playbackStep.roman)}</em>
             </span>
           ) : (
             <span>Reprodução parada</span>

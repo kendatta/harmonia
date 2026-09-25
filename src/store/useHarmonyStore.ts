@@ -43,6 +43,8 @@ interface HarmonyState {
   playingPresetId: string | null;
   playbackStep: ProgressionStep | null;
   inspected: ProgressionStep;
+  /** Epoch ms of the last single-chord attack (click, back, or new center). */
+  audibleAt: number;
   applyStart: (root: string, quality: Quality, key: KeyContext) => void;
   chooseContinuation: (move: Continuation) => void;
   replayCenter: () => void;
@@ -204,6 +206,7 @@ export const useHarmonyStore = create<HarmonyState>((set, get) => {
     playingPresetId: null,
     playbackStep: null,
     inspected: initialStep,
+    audibleAt: 0,
 
     applyStart: (root, quality, key) => {
       interrupt();
@@ -216,6 +219,7 @@ export const useHarmonyStore = create<HarmonyState>((set, get) => {
         history: [],
         progression: [step],
         inspected: step,
+        audibleAt: Date.now(),
       });
       void playChord(center.notes, 3).catch(() => undefined);
     },
@@ -237,6 +241,7 @@ export const useHarmonyStore = create<HarmonyState>((set, get) => {
         key: move.nextKey,
         progression: [...state.progression, step],
         inspected: step,
+        audibleAt: Date.now(),
       }));
       void playChord(center.notes, 3).catch(() => undefined);
     },
@@ -248,7 +253,7 @@ export const useHarmonyStore = create<HarmonyState>((set, get) => {
         return;
       }
       const step = stepFrom(center.symbol, key);
-      set({ inspected: step });
+      set({ inspected: step, audibleAt: Date.now() });
       void playChord(center.notes, 3).catch(() => undefined);
     },
 
@@ -265,6 +270,7 @@ export const useHarmonyStore = create<HarmonyState>((set, get) => {
         center: previous.center,
         key: previous.key,
         inspected: step,
+        audibleAt: Date.now(),
       });
       void playChord(previous.center.notes, 3).catch(() => undefined);
     },

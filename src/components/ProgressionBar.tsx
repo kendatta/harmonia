@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { displaySymbol, keyLabel } from "../theory/chords";
+import { displayRoman, displaySymbol, keyLabel } from "../theory/chords";
 import { useHarmonyStore } from "../store/useHarmonyStore";
 import { GROUP_COLOR } from "./groupMeta";
 import { Button } from "./ui/button";
@@ -31,7 +31,7 @@ export function ProgressionBar() {
           return (
             <li key={`${step.symbol}-${index}`} className={on ? "chip is-on" : "chip"} style={{ borderColor: GROUP_COLOR[step.group] }} data-testid={`step-${index}`}>
               <span className="chip-roman" style={{ color: GROUP_COLOR[step.group] }}>
-                {step.roman}
+                {displayRoman(step.roman)}
               </span>
               <span className="chip-symbol">{displaySymbol(step.symbol)}</span>
               {changedKey || step.group === "pivot" ? <span className="chip-key">{keyLabel(step.key)}</span> : null}
