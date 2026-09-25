@@ -17,6 +17,7 @@ import {
   type PlacedChord,
 } from "../theory/layout";
 import { chordAria, keyPhrase, pivotLabel } from "../theory/speech";
+import { opacity } from "../theme/tokens";
 import { useHarmonyStore } from "../store/useHarmonyStore";
 import type { Group } from "../theory/types";
 import { SvgChord } from "./ChordSymbol";
@@ -36,8 +37,9 @@ interface Spoke {
   color: string;
 }
 
-/** Radial segment from the center ring to the node edge, skipping any disk it would cross. */
+/** Radial segment from the center ring to the node edge, skipping any disk it would cross. Pivots never get one. */
 function toSpoke(node: PlacedChord, all: PlacedChord[]): Spoke | null {
+  if (node.ring === 4 || node.continuation.group === "pivot") return null;
   const endR = node.orbit - node.r;
   let startR: number = FRAME.centerRing;
   for (const other of all) {
@@ -243,7 +245,7 @@ function OrbitNode({
   const receded = !strong && !hot;
   const state = locked ? "unavailable" : hot ? "hover" : strong ? "strong" : "receded";
   const strokeWidth = receded ? 1 : 2;
-  const strokeOpacity = receded ? 0.25 : 1;
+  const strokeOpacity = receded ? 0.25 : move.group === "pivot" && strong && !hot ? opacity.restStroke : 1;
   const symbolFill = receded ? "var(--color-text-muted)" : "var(--color-text)";
   const degreeFill = hot ? "var(--color-text-secondary)" : "var(--color-text-muted)";
   return (

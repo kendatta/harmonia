@@ -11,6 +11,8 @@ export const color = {
   keyWhite: "#34383E",
   keyBlack: "#0E0F11",
   group: { diatonic: "#E8E1D0", secondary: "#E3A857", borrowed: "#7FA9E3", pivot: "#62C2A8" },
+  /** Solid key fill after the sound. Same on white and black keys. */
+  keyLitRest: { diatonic: "#B2AEA4", secondary: "#AE864F", borrowed: "#6887B1", pivot: "#549988" },
 } as const;
 
 export const space = { 1: 4, 2: 8, 3: 12, 4: 16, 5: 24, 6: 32, 7: 48, 8: 64 } as const;

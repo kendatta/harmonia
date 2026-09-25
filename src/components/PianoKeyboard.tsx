@@ -1,5 +1,5 @@
 import { keyboardStart, voicedMidis } from "../theory/chords";
-import { groupVar } from "./groupMeta";
+import { groupVar, keyLitRestVar } from "./groupMeta";
 import type { Group } from "../theory/types";
 
 const WHITE = new Set([0, 2, 4, 5, 7, 9, 11]);
@@ -30,6 +30,7 @@ export function PianoKeyboard({
   const blackW = 13;
   const blackH = 54;
   const color = groupVar(group);
+  const rest = keyLitRestVar(group);
   const blacks = Array.from({ length: 24 }, (_, index) => start + index).filter((midi) => !WHITE.has(midi % 12));
 
   return (
@@ -40,7 +41,7 @@ export function PianoKeyboard({
         const on = lit.has(midi);
         return (
           <g key={midi} data-midi={midi} data-lit={on ? "true" : "false"} data-root={midi === root ? "true" : "false"}>
-            <path d={keyPath(x, 0, whiteW, whiteH, 3)} fill={on ? color : "var(--color-key-white)"} fillOpacity={on && !active ? 0.7 : 1} />
+            <path d={keyPath(x, 0, whiteW, whiteH, 3)} fill={on ? (active ? color : rest) : "var(--color-key-white)"} fillOpacity={1} />
             {on && midi === root ? <circle cx={x + whiteW / 2} cy={whiteH * (5 / 6)} r={2.5} fill="var(--color-bg)" /> : null}
           </g>
         );
@@ -53,7 +54,7 @@ export function PianoKeyboard({
         const on = lit.has(midi);
         return (
           <g key={midi} data-midi={midi} data-lit={on ? "true" : "false"} data-root={midi === root ? "true" : "false"}>
-            <path d={keyPath(x, 0, blackW, blackH, 3)} fill={on ? color : "var(--color-key-black)"} fillOpacity={on && !active ? 0.7 : 1} />
+            <path d={keyPath(x, 0, blackW, blackH, 3)} fill={on ? (active ? color : rest) : "var(--color-key-black)"} fillOpacity={1} />
             {on && midi === root ? <circle cx={x + blackW / 2} cy={blackH * (5 / 6)} r={2.5} fill="var(--color-bg)" /> : null}
           </g>
         );

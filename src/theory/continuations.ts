@@ -1,7 +1,7 @@
 import { Chord, Note } from "tonal";
 import { keyLabel, notesOfSymbol, sameKey, spellKey } from "./chords";
 import { degreeNumber } from "./layout";
-import { solfegePitch } from "./speech";
+import { pivotLabel } from "./speech";
 import type { ChordAnalysis, Continuation, Group, KeyContext, PivotKind } from "./types";
 
 const MAJOR_STEPS = ["1P", "2M", "3M", "4P", "5P", "6M", "7M"] as const;
@@ -211,11 +211,6 @@ function spellNoteForHome(note: string, home: KeyContext): string {
   return note;
 }
 
-function destinationTag(key: KeyContext): string {
-  const name = solfegePitch(key.tonic);
-  return key.mode === "minor" ? `${name} m` : name;
-}
-
 function pitchKey(symbol: string): string {
   return Chord.get(symbol)
     .notes.map((note) => String(Note.chroma(note)))
@@ -292,7 +287,7 @@ function pivotMoves(key: KeyContext): Continuation[] {
         symbol: best.symbol,
         group: "pivot",
         roman: best.oldRoman,
-        caption: `${best.oldRoman} = ${best.newRoman} (${destinationTag(nextKey)})`,
+        caption: `${best.oldRoman} = ${best.newRoman} (${pivotLabel(nextKey)})`,
         detail: `${best.oldRoman} aqui é ${best.newRoman} em ${place}. Acorde comum: o som fica, a função muda.`,
         nextKey,
         pivotKind: kind,

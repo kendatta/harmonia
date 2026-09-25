@@ -1,5 +1,19 @@
 import type { Group } from "../theory/types";
 
+/** Solid fill for a key that has sounded and gone quiet. */
+export function keyLitRestVar(group: Group | "chromatic"): string {
+  switch (group) {
+    case "secondary":
+      return "var(--color-key-lit-rest-secondary)";
+    case "borrowed":
+      return "var(--color-key-lit-rest-borrowed)";
+    case "pivot":
+      return "var(--color-key-lit-rest-pivot)";
+    default:
+      return "var(--color-key-lit-rest-diatonic)";
+  }
+}
+
 export function groupVar(group: Group | "chromatic"): string {
   switch (group) {
     case "secondary":

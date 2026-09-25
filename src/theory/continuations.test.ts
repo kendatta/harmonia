@@ -57,17 +57,17 @@ describe("continuações em C maior", () => {
   it("abre portas por acorde comum, e marca o paralelo como modulação direta", () => {
     expect(byId(moves, "pivot-fifth-up")).toMatchObject({
       symbol: "Am",
-      caption: "vi = ii (Sol)",
+      caption: "vi = ii (→ Sol)",
       nextKey: { tonic: "G", mode: "major" },
     });
     expect(byId(moves, "pivot-fifth-down")).toMatchObject({
       symbol: "Dm",
-      caption: "ii = vi (Fá)",
+      caption: "ii = vi (→ Fá)",
       nextKey: { tonic: "F", mode: "major" },
     });
     expect(byId(moves, "pivot-relative")).toMatchObject({
       symbol: "F",
-      caption: "IV = VI (Lá m)",
+      caption: "IV = VI (→ Lá m)",
       nextKey: { tonic: "A", mode: "minor" },
     });
     expect(byId(moves, "pivot-parallel")).toMatchObject({
@@ -124,7 +124,7 @@ describe("A menor", () => {
   it("modula por acorde comum, sem repetir a tônica de destino", () => {
     expect(byId(moves, "pivot-relative")).toMatchObject({
       symbol: "Dm",
-      caption: "iv = ii (Dó)",
+      caption: "iv = ii (→ Dó)",
       nextKey: { tonic: "C", mode: "major" },
     });
     expect(byId(moves, "pivot-parallel")).toMatchObject({
