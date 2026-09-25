@@ -37,6 +37,8 @@ export function Sidebar() {
   const savePreset = useHarmonyStore((state) => state.savePreset);
   const deletePreset = useHarmonyStore((state) => state.deletePreset);
   const loadPreset = useHarmonyStore((state) => state.loadPreset);
+  const center = useHarmonyStore((state) => state.center);
+  const inspected = useHarmonyStore((state) => state.inspected);
   const progress = useSoundingProgress(sounding);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
@@ -45,7 +47,8 @@ export function Sidebar() {
   const selected: Preset | undefined = presets.find((preset) => preset.id === selectedPresetId);
   const steps = selected?.steps ?? progression;
   const index = playIndex >= 0 ? playIndex : 0;
-  const current = steps[Math.min(index, Math.max(steps.length - 1, 0))];
+  const playingNow = (isPlaying || paused) && playIndex >= 0 ? steps[Math.min(playIndex, steps.length - 1)] : null;
+  const current = playingNow ?? { symbol: center.symbol, roman: inspected.roman, group: inspected.group };
   const hasSteps = steps.length > 0;
 
   return (
