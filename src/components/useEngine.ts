@@ -6,16 +6,3 @@ export function useEngine(): Engine {
   useEffect(() => subscribeEngine(setEngine), []);
   return engine;
 }
-
-export function engineLabel(engine: Engine): string {
-  switch (engine) {
-    case "sampler":
-      return "Piano acústico";
-    case "synth":
-      return "Sintetizador";
-    case "loading":
-      return "Carregando piano…";
-    case "idle":
-      return "Clique para ouvir";
-  }
-}

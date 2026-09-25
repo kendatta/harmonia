@@ -12,6 +12,7 @@ import {
   layoutContinuations,
   layoutKey,
   polar,
+  sectorArcPath,
   type PlacedChord,
 } from "../theory/layout";
 import { chordAria, keyPhrase, pivotLabel } from "../theory/speech";
@@ -24,6 +25,28 @@ import { useSoundingProgress } from "./useSounding";
 const EASE = CENTER_EASE;
 
 type Origin = "stay" | "center" | "inward";
+
+interface Spoke {
+  id: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  color: string;
+}
+
+function toSpoke(node: PlacedChord): Spoke {
+  const inner = polar(FRAME.c, FRAME.c, FRAME.centerRing, node.angle);
+  const outer = polar(FRAME.c, FRAME.c, node.orbit - node.r, node.angle);
+  return {
+    id: node.continuation.id,
+    x1: inner.x,
+    y1: inner.y,
+    x2: outer.x,
+    y2: outer.y,
+    color: groupVar(node.continuation.group),
+  };
+}
 
 interface Memory {
   symbol: string;
@@ -198,9 +221,10 @@ function OrbitNode({
   }, [exitInstant, pos, present, reduced, ref]);
 
   const strong = move.strong;
+  const emphasized = (hovered || strong) && !locked;
   const state = locked ? "unavailable" : hovered ? "hover" : strong ? "strong" : "rest";
-  const strokeWidth = hovered || strong ? 2 : 1.5;
-  const strokeOpacity = hovered || strong ? 1 : 0.55;
+  const strokeWidth = emphasized ? 2 : 1.5;
+  const strokeOpacity = emphasized ? 1 : 0.55;
   return (
     <motion.g
       initial={origin === "inward" && !reduced ? { opacity: 0 } : false}
@@ -343,6 +367,20 @@ function CenterDisk({
   );
 }
 
+function SectorWord({ id, label, clockwise }: { id: string; label: string; clockwise: boolean }) {
+  const ref = useRef<SVGTextPathElement>(null);
+  useEffect(() => {
+    ref.current?.setAttribute("side", clockwise ? "right" : "left");
+  }, [clockwise]);
+  return (
+    <text className="sector-label" data-sector={id}>
+      <textPath ref={ref} href={`#sector-arc-${id}`} startOffset="50%" textAnchor="middle">
+        {label}
+      </textPath>
+    </text>
+  );
+}
+
 export function Navigator() {
   const center = useHarmonyStore((state) => state.center);
   const key = useHarmonyStore((state) => state.key);
@@ -379,6 +417,49 @@ export function Navigator() {
   }, [setTransitionFrom, transitionFrom]);
 
   const hovered = ordered.find((node) => node.continuation.id === hoverId) ?? null;
+  const spokeSignature = `${isPlaying ? "play" : "rest"}|${ordered
+    .filter((node) => node.continuation.strong && node.ring <= 3)
+    .map((node) => `${node.continuation.id}:${node.angle}:${node.orbit}:${node.r}`)
+    .join("|")}`;
+  const spokesWanted: Spoke[] = isPlaying
+    ? []
+    : ordered.filter((node) => node.continuation.strong && node.ring <= 3).map(toSpoke);
+  const [spokeLayer, setSpokeLayer] = useState<Spoke[]>(spokesWanted);
+  const [spokeOpacity, setSpokeOpacity] = useState(1);
+  const [spokeFade, setSpokeFade] = useState(0);
+  const skipSpokeFade = useRef(true);
+
+  useEffect(() => {
+    if (skipSpokeFade.current) {
+      skipSpokeFade.current = false;
+      setSpokeLayer(spokesWanted);
+      setSpokeOpacity(isPlaying ? 0 : 1);
+      return;
+    }
+    if (reduced) {
+      setSpokeLayer(spokesWanted);
+      setSpokeOpacity(isPlaying ? 0 : 1);
+      return;
+    }
+    setSpokeFade(80);
+    setSpokeOpacity(0);
+    const swap = window.setTimeout(() => setSpokeLayer(spokesWanted), 80);
+    if (isPlaying) return () => window.clearTimeout(swap);
+    const show = window.setTimeout(() => {
+      setSpokeLayer(spokesWanted);
+      setSpokeFade(120);
+      setSpokeOpacity(1);
+    }, 450);
+    return () => {
+      window.clearTimeout(swap);
+      window.clearTimeout(show);
+    };
+    // spokesWanted is rebuilt every render; spokeSignature is its identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spokeSignature, reduced]);
+
+  const hoverSpoke =
+    hovered && !isPlaying && !(hovered.continuation.strong && hovered.ring <= 3) ? toSpoke(hovered) : null;
   const ghost = ghostForRoman(
     analysis.roman,
     placed.filter((node) => node.ring === 1).map((node) => node.angle),
@@ -409,48 +490,48 @@ export function Navigator() {
             <line key={angle} x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y} className="sector-ray" />
           );
         })}
-        <motion.g
-          key={`${activeKey.tonic}-${activeKey.mode}`}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: reduced ? 0.12 : 0.2 }}
-        >
-          {SECTORS.map((sector) => {
-            const point = polar(FRAME.c, FRAME.c, 160, sector.angle);
-            return (
-              <text key={sector.id} x={point.x} y={point.y} textAnchor="middle" className="sector-label">
-                {sector.label}
-              </text>
-            );
-          })}
-        </motion.g>
+        <defs>
+          {SECTORS.map((sector) => (
+            <path key={sector.id} id={`sector-arc-${sector.id}`} d={sectorArcPath(sector.angle, sector.clockwise)} fill="none" />
+          ))}
+        </defs>
+        {SECTORS.map((sector) => (
+          <SectorWord key={sector.id} id={sector.id} label={sector.label} clockwise={sector.clockwise} />
+        ))}
         {ghost ? (
           <circle cx={ghost.x} cy={ghost.y} r={FRAME.nodeDiatonic} className="ghost" data-ghost="true" />
         ) : null}
         {targetLine ? (
           <line x1={targetLine.x1} y1={targetLine.y1} x2={targetLine.x2} y2={targetLine.y2} className="target-link" />
         ) : null}
-        {isPlaying
-          ? null
-          : ordered
-              .filter((node) => node.continuation.strong || node.continuation.id === hoverId)
-              .map((node) => {
-                const inner = polar(FRAME.c, FRAME.c, FRAME.centerRing, node.angle);
-                const outer = polar(FRAME.c, FRAME.c, node.orbit - node.r, node.angle);
-                return (
-                  <line
-                    key={`spoke-${node.continuation.id}`}
-                    x1={inner.x}
-                    y1={inner.y}
-                    x2={outer.x}
-                    y2={outer.y}
-                    stroke={groupVar(node.continuation.group)}
-                    strokeOpacity={0.4}
-                    strokeWidth={node.continuation.id === hoverId ? 1 : 1.5}
-                    pointerEvents="none"
-                  />
-                );
-              })}
+        <g data-spokes="permanent" pointerEvents="none" style={{ opacity: spokeOpacity, transition: `opacity ${spokeFade}ms linear` }}>
+          {spokeLayer.map((spoke) => (
+            <line
+              key={spoke.id}
+              data-spoke={spoke.id}
+              x1={spoke.x1}
+              y1={spoke.y1}
+              x2={spoke.x2}
+              y2={spoke.y2}
+              stroke={spoke.color}
+              strokeOpacity={0.4}
+              strokeWidth={1}
+            />
+          ))}
+        </g>
+        {hoverSpoke ? (
+          <line
+            data-spoke="hover"
+            x1={hoverSpoke.x1}
+            y1={hoverSpoke.y1}
+            x2={hoverSpoke.x2}
+            y2={hoverSpoke.y2}
+            stroke={hoverSpoke.color}
+            strokeOpacity={0.4}
+            strokeWidth={1}
+            pointerEvents="none"
+          />
+        ) : null}
         <AnimatePresence initial={false}>
           {ordered.map((node) => {
             const id = layoutKey(node.continuation.symbol, node.continuation.group);
@@ -498,8 +579,10 @@ export function Navigator() {
               key={`label-${node.continuation.id}`}
               x={node.label?.x}
               y={node.label?.y}
-              textAnchor={node.label?.anchor}
+              textAnchor="middle"
               className="pivot-label"
+              fillOpacity={isPlaying ? 0.4 : 1}
+              data-pivot-label={node.continuation.id}
             >
               {pivotLabel(node.continuation.nextKey)}
             </text>

@@ -8,8 +8,8 @@ export const color = {
   text: "#ECEDEE",
   textSecondary: "#A1A6AD",
   textMuted: "#8A9098",
-  keyWhite: "#E6E3DC",
-  keyBlack: "#1A1C1F",
+  keyWhite: "#34383E",
+  keyBlack: "#0E0F11",
   group: { diatonic: "#E8E1D0", secondary: "#E3A857", borrowed: "#7FA9E3", pivot: "#62C2A8" },
 } as const;
 

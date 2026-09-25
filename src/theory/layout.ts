@@ -189,13 +189,6 @@ function chordDistance(a: { x: number; y: number; r: number }, b: { x: number; y
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-function labelAnchor(angle: number): "start" | "middle" | "end" {
-  const value = normAngle(angle);
-  if (value > 20 && value < 160) return "start";
-  if (value > 200 && value < 340) return "end";
-  return "middle";
-}
-
 export function layoutContinuations(moves: Continuation[], key: KeyContext): PlacedChord[] {
   const drafted = moves.flatMap((move) => {
     const ring = RING_OF[move.group];
@@ -255,24 +248,7 @@ export function layoutContinuations(moves: Continuation[], key: KeyContext): Pla
       angle: item.angle,
     };
     if (item.move.group === "pivot") {
-      const outward = item.orbit + item.r + 14;
-      const outwardPoint = polar(FRAME.c, FRAME.c, outward, item.angle);
-      const clips =
-        outwardPoint.x < 36 || outwardPoint.x > FRAME.size - 36 || outwardPoint.y < 18 || outwardPoint.y > FRAME.size - 18;
-      if (!clips) {
-        placed.label = { x: outwardPoint.x, y: outwardPoint.y, anchor: labelAnchor(item.angle) };
-      } else {
-        const node = polar(FRAME.c, FRAME.c, item.orbit, item.angle);
-        const rad = (item.angle * Math.PI) / 180;
-        const tx = Math.cos(rad);
-        const ty = Math.sin(rad);
-        const gap = item.r + 18;
-        const above = { x: node.x + tx * gap, y: node.y + ty * gap };
-        const below = { x: node.x - tx * gap, y: node.y - ty * gap };
-        const room = (point: { x: number; y: number }) => Math.min(point.x, point.y, FRAME.size - point.x, FRAME.size - point.y);
-        const labelPoint = room(above) >= room(below) ? above : below;
-        placed.label = { x: labelPoint.x, y: labelPoint.y, anchor: "middle" };
-      }
+      placed.label = { x: point.x, y: point.y + item.r + 14, anchor: "middle" };
     }
     return placed;
   });
@@ -291,10 +267,18 @@ export function ghostForRoman(roman: string, occupiedAngles: number[]): { x: num
 }
 
 export const SECTORS = [
-  { id: "tonic", label: "TÔNICA", angle: 0 },
-  { id: "dominant", label: "DOMINANTE", angle: 120 },
-  // 240° is the bisector, but the long label covers ii and V7/ii. 188° stays in the sector.
-  { id: "subdominant", label: "SUBDOMINANTE", angle: 188 },
+  { id: "tonic", label: "TÔNICA", angle: 0, clockwise: true },
+  { id: "dominant", label: "DOMINANTE", angle: 120, clockwise: false },
+  { id: "subdominant", label: "SUBDOMINANTE", angle: 240, clockwise: false },
 ] as const;
+
+/** Arc the sector word rides. Bottom sectors run counter-clockwise so the glyphs read left to right. */
+export function sectorArcPath(angle: number, clockwise: boolean, radius = 154, sweep = 36): string {
+  const start = clockwise ? angle - sweep : angle + sweep;
+  const end = clockwise ? angle + sweep : angle - sweep;
+  const from = polar(FRAME.c, FRAME.c, radius, start);
+  const to = polar(FRAME.c, FRAME.c, radius, end);
+  return `M ${from.x} ${from.y} A ${radius} ${radius} 0 0 ${clockwise ? 1 : 0} ${to.x} ${to.y}`;
+}
 
 export const SECTOR_RAYS = [60, 180, 300] as const;

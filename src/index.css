@@ -439,11 +439,16 @@ sup {
   color: var(--color-text-muted);
 }
 
-.preset-actions {
+.row-actions {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
   gap: 4px;
-  margin-top: -4px;
+  flex: none;
+}
+
+.row-action {
+  height: 28px;
+  padding-inline: 8px;
 }
 
 .save-row {
@@ -546,6 +551,17 @@ sup {
   color: var(--color-text-secondary);
 }
 
+.stop-button:hover:not(:disabled) {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+}
+
+.stop-mark {
+  width: 10px;
+  height: 10px;
+  background: currentColor;
+}
+
 .play-button:disabled,
 .stop-button:disabled,
 .speed input:disabled {
@@ -579,13 +595,25 @@ sup {
   position: absolute;
   left: 0;
   right: 0;
+  top: 6px;
   height: 2px;
   background: var(--color-line-strong);
+}
+
+.speed-tick {
+  position: absolute;
+  top: 4px;
+  width: 1px;
+  height: 6px;
+  background: var(--color-text-muted);
+  transform: translateX(-0.5px);
+  pointer-events: none;
 }
 
 .speed-active {
   position: absolute;
   left: 0;
+  top: 6px;
   height: 2px;
   background: var(--color-text);
 }
@@ -620,16 +648,6 @@ sup {
   line-height: 16px;
   min-width: 42px;
   text-align: right;
-}
-
-.speed-marks {
-  display: flex;
-  justify-content: space-between;
-  margin-left: 118px;
-  margin-right: 50px;
-  color: var(--color-text-muted);
-  font-family: var(--font-mono);
-  font-size: 10px;
 }
 
 .wheel-node {
@@ -693,8 +711,7 @@ legend {
 
 .segment,
 .root-grid,
-.quality-grid,
-.key-row {
+.quality-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -703,15 +720,6 @@ legend {
 .root-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-}
-
-.select-wrap select {
-  height: 32px;
-  border-radius: 999px;
-  border: 1px solid var(--color-line);
-  background: var(--color-bg);
-  color: var(--color-text);
-  padding: 0 10px;
 }
 
 .sr-only {

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Pause, Play, Square } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { Pause, Play } from "lucide-react";
 import { displayRoman } from "../theory/chords";
 import { useHarmonyStore } from "../store/useHarmonyStore";
 import type { Preset, ProgressionStep } from "../store/useHarmonyStore";
@@ -62,25 +62,46 @@ export function Sidebar() {
             onSelect={() => selectPreset(null)}
           />
           {presets.map((preset) => (
-            <div key={preset.id} className="preset-wrap">
-              <ProgressionRow
-                name={preset.name}
-                steps={preset.steps}
-                count={preset.steps.length}
-                selected={selectedPresetId === preset.id}
-                onSelect={() => selectPreset(preset.id)}
-              />
-              <div className="preset-actions">
-                <Button type="button" size="sm" variant="ghost" onClick={() => loadPreset(preset.id)}>
-                  Carregar
-                </Button>
-                <Button type="button" size="sm" variant="ghost" onClick={() => deletePreset(preset.id)}>
-                  Excluir
-                </Button>
-              </div>
-            </div>
+            <ProgressionRow
+              key={preset.id}
+              name={preset.name}
+              steps={preset.steps}
+              count={preset.steps.length}
+              selected={selectedPresetId === preset.id}
+              onSelect={() => selectPreset(preset.id)}
+              actions={
+                selectedPresetId === preset.id ? (
+                  <span className="row-actions">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="row-action"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        loadPreset(preset.id);
+                      }}
+                    >
+                      Carregar
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="row-action"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        deletePreset(preset.id);
+                      }}
+                    >
+                      Excluir
+                    </Button>
+                  </span>
+                ) : null
+              }
+            />
           ))}
-          {presets.length === 0 ? <p className="empty-copy">Nenhuma predefinição salva neste navegador.</p> : null}
+          {presets.length === 0 ? <p className="empty-copy">Nenhuma progressão salva ainda.</p> : null}
         </div>
         <form
           className="save-row"
@@ -88,20 +109,20 @@ export function Sidebar() {
             event.preventDefault();
             const ok = savePreset(name);
             if (!ok) {
-              setError("Dê um nome à predefinição.");
+              setError("Dê um nome à progressão.");
               setFlash("");
               return;
             }
             setName("");
             setError("");
-            setFlash("Predefinição salva neste navegador.");
+            setFlash("Progressão salva neste navegador.");
           }}
         >
           <Input
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Nome da predefinição"
-            aria-label="Nome da predefinição"
+            placeholder="Nome da progressão"
+            aria-label="Nome da progressão"
             data-testid="preset-name"
           />
           <Button type="submit" variant="outline" data-testid="save-preset">
@@ -167,11 +188,18 @@ export function Sidebar() {
             data-testid="stop-playback"
             aria-label="Parar"
           >
-            <Square />
+            <span className="stop-mark" />
           </button>
           <label className="speed">
             <span className="speed-caption">Velocidade</span>
             <span className="speed-track">
+              {[0.5, 1, 1.5, 2].map((mark) => (
+                <span
+                  key={mark}
+                  className="speed-tick"
+                  style={{ left: `calc(7px + (100% - 14px) * ${(mark - 0.5) / 1.5})` }}
+                />
+              ))}
               <span className="speed-active" style={{ width: `${((playbackRate - 0.5) / 1.5) * 100}%` }} />
               <input
                 type="range"
@@ -188,12 +216,6 @@ export function Sidebar() {
             <span className="speed-value">{formatRate(playbackRate)}</span>
           </label>
         </div>
-        <div className="speed-marks" aria-hidden="true">
-          <span>0,5</span>
-          <span>1</span>
-          <span>1,5</span>
-          <span>2</span>
-        </div>
       </footer>
     </aside>
   );
@@ -205,20 +227,34 @@ function ProgressionRow({
   count,
   selected,
   onSelect,
+  actions,
 }: {
   name: string;
   steps: ProgressionStep[];
   count: number;
   selected: boolean;
   onSelect: () => void;
+  actions?: ReactNode;
 }) {
   return (
-    <button type="button" className={selected ? "prog-row is-selected" : "prog-row"} aria-pressed={selected} onClick={onSelect}>
+    <div
+      role="button"
+      tabIndex={0}
+      className={selected ? "prog-row is-selected" : "prog-row"}
+      aria-pressed={selected}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+    >
       <span className="prog-copy">
         <span className="prog-name">{name}</span>
         <span className="prog-preview">{preview(steps)}</span>
       </span>
-      <span className="prog-count">{count}</span>
-    </button>
+      {actions ?? <span className="prog-count">{count}</span>}
+    </div>
   );
 }

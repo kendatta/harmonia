@@ -5,7 +5,7 @@ import { musicGlyphs } from "../theory/chords";
 import { polar } from "../theory/layout";
 import { keyPhrase } from "../theory/speech";
 import { useHarmonyStore } from "../store/useHarmonyStore";
-import { engineLabel, useEngine } from "./useEngine";
+import { useEngine } from "./useEngine";
 import { plainSymbol } from "../theory/symbol";
 import { ChordPicker } from "./ChordPicker";
 import { Button } from "./ui/button";
@@ -63,15 +63,17 @@ export function TopBar() {
         </p>
       </div>
       <div className="top-right">
-        <span className="engine" data-testid="engine-status">
-          {engineLabel(engine)}
-        </span>
+        {engine === "loading" ? (
+          <span className="engine" data-testid="engine-status">
+            Carregando piano…
+          </span>
+        ) : null}
         <div className="popover-anchor" ref={pickerRef}>
           <Button type="button" variant="ghost" onClick={() => setPickerOpen((open) => !open)} aria-expanded={pickerOpen}>
-            Nova partida
+            Recomeçar
           </Button>
           {pickerOpen ? (
-            <div className="popover popover-wide" role="dialog" aria-label="Nova partida">
+            <div className="popover popover-wide" role="dialog" aria-label="Recomeçar">
               <ChordPicker onApplied={() => setPickerOpen(false)} />
             </div>
           ) : null}

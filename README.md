@@ -2,7 +2,7 @@
 
 Um instrumento de mesa para caminhar pela harmonia. Você escolhe um acorde, ouve o piano e vê, em anéis geométricos, o que pode vir depois: funções do tom, dominantes secundárias, empréstimos modais e portas para tons vizinhos. Cada clique torna aquele acorde o novo centro.
 
-A interface está em português (Brasil). Não há conta nem servidor: as predefinições ficam no `localStorage` do navegador.
+A interface está em português (Brasil). Não há conta nem servidor: as progressões salvas ficam no `localStorage` do navegador.
 
 ## Como rodar
 
@@ -24,10 +24,10 @@ Na primeira vez, o piano tenta carregar as amostras Salamander (as mesmas usadas
 
 ## Como usar
 
-1. Em **Nova partida**, escolha a fundamental, a qualidade e o tom de referência. **Definir centro** recomeça o caminho nesse acorde.
+1. Em **Recomeçar**, escolha a fundamental, a qualidade e a tonalidade. **Definir centro** apaga o caminho e recomeça nesse acorde.
 2. Clique num acorde ao redor para ouvi-lo por cerca de 3 segundos, ver as notas (e o teclado) e torná-lo o centro. O mapa se reorganiza.
 3. **Voltar** desfaz o último passo.
-4. O caminho atual e as predefinições ficam na barra da direita. Selecionar uma linha não toca nada. **Tocar** percorre a seleção; a velocidade vai de 0,5× a 2,0× e cada acorde dura 3 segundos divididos por essa velocidade. **Carregar** traz a predefinição para o centro.
+4. O caminho atual e as progressões salvas ficam na barra da direita. Selecionar uma linha não toca nada. **Tocar** percorre a seleção; a velocidade vai de 0,5× a 2,0× e cada acorde dura 3 segundos divididos por essa velocidade. **Carregar** traz a progressão para o centro.
 
 O traço mais firme liga o centro a um passo provável a partir da função atual. Passe o cursor sobre um acorde para ler a explicação.
 
