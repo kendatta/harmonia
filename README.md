@@ -1,65 +1,93 @@
-# Navegador Harmônico
+# Harmonia
 
-Um instrumento de mesa para caminhar pela harmonia. Você escolhe um acorde, ouve o piano e vê, em anéis geométricos, o que pode vir depois: funções do tom, dominantes secundárias, empréstimos modais e portas para tons vizinhos. Cada clique torna aquele acorde o novo centro.
+**Navegador harmônico interativo para o navegador.** Escolha um acorde, ouça no piano e veja, em anéis ao redor dele, para onde a harmonia pode ir: funções do tom, dominantes secundárias, empréstimos modais e acordes que levam a outros tons. Cada clique transforma o acorde escolhido no novo centro.
 
-A interface está em português (Brasil). Não há conta nem servidor: as progressões salvas ficam no `localStorage` do navegador.
+![Harmonia com Fá no centro, mostrando os quatro grupos de acordes](docs/screenshot.png)
+
+A interface é em português (Brasil). Não há login nem servidor: tudo roda no navegador, e as progressões salvas ficam no `localStorage`.
+
+## Funcionalidades
+
+- **Mapa de continuações.** Os acordes possíveis aparecem em quatro anéis em volta do acorde central, cada anel com uma cor:
+  - **Diatônicos** (marfim): tônica, subdominante e dominante do tom atual.
+  - **Dominantes secundárias** (âmbar): o V7 de cada grau, posicionado no ângulo do acorde que ele prepara.
+  - **Empréstimos modais** (azul): acordes do modo paralelo, como iv, ♭III, ♭VI e ♭VII no tom maior.
+  - **Pivôs** (verde-sálvia): acordes-porta para o relativo, o paralelo e os tons vizinhos a uma quinta. Clicar em um deles muda o tom.
+- **Som de piano.** Cada acorde toca por cerca de 3 segundos com amostras de piano reais (Salamander), com um sintetizador de reserva se as amostras não carregarem.
+- **Teclado e notas.** O acorde escolhido aparece num teclado, com o nome e o intervalo de cada nota.
+- **Sugestão de próximo passo.** Um traço mais forte liga o centro aos passos mais prováveis a partir da função do acorde atual. Passar o cursor sobre um acorde mostra a explicação.
+- **Progressões.** O caminho percorrido fica na barra lateral. Dá para salvar, carregar e tocar progressões, com velocidade de 0,5× a 2,0×.
+- **Grafia correta.** Os nomes seguem o tom: F♯ maior usa sustenidos (o vii° é E♯°), e dobrados como F𝄪 aparecem quando a teoria pede.
 
 ## Como rodar
 
+Você precisa do [Node.js](https://nodejs.org) 22 ou mais recente.
+
 ```bash
+git clone https://github.com/kendatta/harmonia.git
+cd harmonia
 npm install
 npm run dev
 ```
 
-O Vite sobe em [http://127.0.0.1:4731](http://127.0.0.1:4731).
+Abra [http://localhost:4731](http://localhost:4731). O navegador só libera o áudio depois do primeiro clique na página.
+
+### Outros comandos
 
 ```bash
-npm test        # testes da camada harmônica
-npm run build   # site estático em dist/
+npm test          # roda os testes da teoria, do layout, do estado e do áudio
+npm run build     # gera o site estático em dist/
+npm run preview   # serve o build localmente
+npm run lint      # verifica o código com oxlint
 ```
 
-O build é estático e pode ser publicado na Vercel ou no Cloudflare Pages. O app não faz deploy sozinho.
-
-Na primeira vez, o piano tenta carregar as amostras Salamander (as mesmas usadas com o Tone.js). Se a rede falhar, a escuta cai para um sintetizador. O navegador só libera o áudio depois de um clique.
+O resultado de `npm run build` é um site estático e pode ser publicado em qualquer hospedagem estática, como Vercel, Netlify, Cloudflare Pages ou GitHub Pages.
 
 ## Como usar
 
-1. Em **Recomeçar**, escolha a fundamental, a qualidade e a tonalidade. **Definir centro** apaga o caminho e recomeça nesse acorde.
-2. Clique num acorde ao redor para ouvi-lo por cerca de 3 segundos, ver as notas (e o teclado) e torná-lo o centro. O mapa se reorganiza.
+1. Em **Recomeçar**, escolha a fundamental, a qualidade do acorde e a tonalidade. **Definir centro** começa um caminho novo a partir desse acorde.
+2. Clique em qualquer acorde do mapa para ouvi-lo, ver as notas e torná-lo o novo centro. O mapa se reorganiza em volta dele.
 3. **Voltar** desfaz o último passo.
-4. O caminho atual e as progressões salvas ficam na barra da direita. Selecionar uma linha não toca nada. **Tocar** percorre a seleção; a velocidade vai de 0,5× a 2,0× e cada acorde dura 3 segundos divididos por essa velocidade. **Carregar** traz a progressão para o centro.
-
-O traço mais firme liga o centro a um passo provável a partir da função atual. Passe o cursor sobre um acorde para ler a explicação.
+4. Na barra lateral, **Tocar** percorre a progressão selecionada, **Salvar** guarda o caminho atual com um nome e **Carregar** traz uma progressão salva de volta para o mapa.
 
 ## Modelo harmônico
 
-O tom de referência é maior ou menor. O mapa é um SVG de 720×720. O I fica no topo e cada grau tem um ângulo fixo (o mapa não gira): 6º a −40°, 1º a 0°, 3º a 40°, 5º a 100°, 7º a 140°, 2º a 220°, 4º a 260°. Três setores — tônica, dominante, subdominante — separam essas posições. O V/x senta no ângulo do grau que prepara; o empréstimo senta no ângulo do grau de mesmo número. O pivô senta na distância do círculo de quintas até o tom de destino (30° por quinta).
+O tom de referência pode ser maior ou menor, e o mapa não gira: cada grau tem um ângulo fixo, com o I no topo, e três setores (tônica, dominante e subdominante) organizam as posições.
 
-Os nós são círculos. A cor repete o anel, nunca é o único código: diatônicos no anel 1 (marfim), dominantes secundárias no anel 2 (âmbar), empréstimos no anel 3 (azul), pivôs no anel 4 (verde-sálvia). O traço mais firme marca um passo provável a partir da função do acorde que está no centro.
-
-| Família | Onde fica | O que entra |
+| Grupo | Anel | O que entra |
 | --- | --- | --- |
-| Funções diatônicas | anel 1 | Tônica (I, iii, vi ou i, III, VI), subdominante (ii, IV ou ii°, iv) e dominante (V, vii°). No menor, o V e o vii° vêm da escala menor harmônica. |
-| Dominante secundária | anel 2, no ângulo do alvo | V7 de cada grau maior ou menor, exceto a tônica e os diminutos. Ex.: em C maior, V7/V = D7. O tom não muda. |
-| Empréstimo modal | anel 3, no ângulo do mesmo número de grau | No maior: iv, bIII, bVI e bVII do menor natural paralelo. No menor: v e VII do modo natural, mais I e IV do maior paralelo. O tom não muda. |
-| Modulação | anel 4, ângulo pelo círculo de quintas | Um acorde-porta para o relativo, o paralelo e os vizinhos a uma quinta acima e abaixo (mesmo modo). Esse clique troca o tom. O rótulo diz o destino, como “→ Sol”. |
+| Diatônicos | 1 | Tônica (I, iii, vi ou i, III, VI), subdominante (ii, IV ou ii°, iv) e dominante (V, vii°). No menor, o V e o vii° vêm da escala menor harmônica. |
+| Dominantes secundárias | 2 | V7 de cada grau maior ou menor, exceto a tônica e os diminutos. Exemplo: em Dó maior, o V7/V é D7. O tom não muda. |
+| Empréstimos modais | 3 | No maior: iv, ♭III, ♭VI e ♭VII do menor natural paralelo. No menor: v e VII do modo natural, mais I e IV do maior paralelo. O tom não muda. |
+| Pivôs | 4 | Acordes-porta para o relativo, o paralelo e os tons a uma quinta acima e abaixo. O clique troca o tom, e o rótulo mostra o destino, como "→ Sol". |
 
-Quando o mesmo símbolo aparece duas vezes, a diferença é o destino. Exemplo em C maior: **Am · vi** permanece em C; **Am · relativo** passa a ser i em A menor. O algarismo romano de cada opção é relativo ao tom *antes* do passo. Depois da modulação, o centro passa a ser lido no tom novo.
-
-Acorde com sétima da dominante (como G7) sugere o tom uma quinta abaixo. Maior e menor sugerem a si mesmos como tônica. Dá para corrigir o tom na partida.
-
-A grafia segue o tom: F# maior usa sustenidos (o vii° é E♯°); Bb e Db maior usam bemóis. Algumas dominantes secundárias em tons com muitos sustenidos mostram dobrados (a terça de D♯7 é F𝄪). É a grafia correta daquele campo, não um enarmônico “mais fácil”. Na tela, bemol e sustenido são glifos (♭ ♯ 𝄫 𝄪), não as letras b e #.
-
-A interface usa Geist e Geist Mono sobre um fundo grafite. A troca de centro anima em 400 ms, com uma curva que não ultrapassa o destino.
+Quando o mesmo acorde aparece duas vezes, a diferença é o destino. Em Dó maior, **Am · vi** continua em Dó, enquanto **Am · relativo** passa a ser o i de Lá menor.
 
 ## Tecnologias
 
-TypeScript, Vite, React, [Tonal](https://github.com/tonaljs/tonal), Tone.js (Sampler + amostras Salamander, com PolySynth de reserva), SVG, Motion e Zustand.
+- [TypeScript](https://www.typescriptlang.org), [React](https://react.dev) e [Vite](https://vite.dev)
+- [Tonal](https://github.com/tonaljs/tonal) para a teoria musical
+- [Tone.js](https://tonejs.github.io) para o áudio (Sampler com amostras Salamander e PolySynth de reserva)
+- SVG com [Motion](https://motion.dev) para o mapa e as animações
+- [Zustand](https://github.com/pmndrs/zustand) para o estado, persistido em `localStorage`
+- [Tailwind CSS](https://tailwindcss.com), fontes Geist e Geist Mono
+- [Vitest](https://vitest.dev) para os testes
+
+## Estrutura
+
+```
+src/
+  theory/      teoria harmônica: acordes, continuações e layout do mapa
+  components/  mapa, teclado, barra lateral e seletor de acordes
+  audio/       piano (Tone.js)
+  store/       estado da aplicação (Zustand)
+  theme/       cores e tokens visuais
+```
 
 ## Limitações
 
-- O movimento diatônico é em tríades. Sétimas aparecem na partida, nas dominantes secundárias e na análise (V7, IΔ).
-- Não há condução de vozes nem ranking além da função do acorde atual. O destaque é uma sugestão, não uma regra.
-- Modulações cobrem relativo, paralelo e ±1 quinta. Não há tons distantes, acordes de sexta napolitana nem dominantes estendidas além do V7/grau.
-- A reprodução é em temperamento igual, uma oitava de voicing fechado a partir de C3.
-- Predefinições são locais a este navegador.
+- O movimento diatônico usa tríades. Sétimas aparecem no acorde inicial, nas dominantes secundárias e na análise.
+- Não há condução de vozes. O destaque do próximo passo é uma sugestão, não uma regra.
+- As modulações cobrem o relativo, o paralelo e os tons a uma quinta de distância. Tons distantes, sexta napolitana e dominantes estendidas ainda não entram.
+- O áudio usa temperamento igual e voicing fechado a partir de C3.
+- As progressões salvas ficam só no navegador onde foram criadas.
