@@ -1,15 +1,24 @@
 @import "tailwindcss";
 
+/* ♭ ♯ Δ from a DejaVu subset, drawn at capital height. */
 @font-face {
-  font-family: "Music Glyphs";
-  src: url("/fonts/NotoMusic-Regular.ttf") format("truetype");
-  unicode-range: U+266D, U+266F, U+1D12A, U+1D12B;
+  font-family: "Text Accidentals";
+  src: url("/fonts/text-accidentals.ttf") format("truetype");
+  unicode-range: U+266D, U+266F, U+0394;
+  font-display: swap;
+}
+
+/* 𝄪 𝄫 from Noto Music, scaled onto the text baseline. */
+@font-face {
+  font-family: "Double Accidentals";
+  src: url("/fonts/double-accidentals.ttf") format("truetype");
+  unicode-range: U+1D12A, U+1D12B;
   font-display: swap;
 }
 
 @theme {
-  --font-sans: "Geist", "Music Glyphs", "DejaVu Sans", "Noto Sans", sans-serif;
-  --font-mono: "Geist Mono", "Music Glyphs", "DejaVu Sans", "Noto Sans", ui-monospace, monospace;
+  --font-sans: "Geist", "Text Accidentals", "Double Accidentals", "DejaVu Sans", "Noto Sans", sans-serif;
+  --font-mono: "Geist Mono", "Text Accidentals", "Double Accidentals", "DejaVu Sans", "Noto Sans", ui-monospace, monospace;
 }
 
 :root {

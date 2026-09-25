@@ -301,7 +301,7 @@ export function Navigator() {
         >
           <circle className="center-disc" r={FRAME.centerR} />
           <circle className="center-pulse" r={FRAME.centerR + 8} />
-          <AnimatePresence mode="wait">
+          <AnimatePresence>
             <motion.g
               key={`${symbol}-${visualKey.tonic}-${visualKey.mode}`}
               initial={{ opacity: 0 }}

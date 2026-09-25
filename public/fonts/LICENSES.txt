@@ -1,0 +1,12 @@
+text-accidentals.ttf is a subset of DejaVu Sans (♭ U+266D, ♯ U+266F, Δ U+0394).
+DejaVu changes are in the public domain. The Bitstream Vera base is under the
+Bitstream Vera license: the copyright and permission notice must travel with
+the font, and modified fonts must not use the names Bitstream or Vera.
+Copyright (c) 2003 by Bitstream, Inc. Bitstream Vera is a trademark of Bitstream, Inc.
+Permission is granted to use, copy, modify, and redistribute the Font Software,
+provided this notice is included. The font is renamed Text Accidentals.
+
+double-accidentals.ttf is a metric-adjusted subset of Noto Music
+(𝄪 U+1D12A, 𝄫 U+1D12B), renamed Double Accidentals.
+Noto fonts are licensed under the SIL Open Font License, Version 1.1.
+https://scripts.sil.org/OFL
