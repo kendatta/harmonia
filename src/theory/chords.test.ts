@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayRoman, displaySymbol, formatNotes, inferKey, keyboardStart, musicGlyphs, notesOf, spellKey, voiceChord, voicedMidis } from "./chords";
+import { displayRoman, displaySymbol, formatNotes, inferKey, keyboardStart, musicGlyphs, notesOf, spellKey, toPickerKey, voiceChord, voicedMidis } from "./chords";
 
 describe("notas dos acordes", () => {
   it("soletra a tríade maior de C", () => {
@@ -49,6 +49,14 @@ describe("tom sugerido", () => {
     expect(inferKey("D#", "7")).toEqual({ tonic: "Ab", mode: "major" });
     expect(spellKey("Fb", "major")).toEqual({ tonic: "E", mode: "major" });
     expect(spellKey("Cb", "major")).toEqual({ tonic: "Cb", mode: "major" });
+  });
+
+  it("aponta Sol♭ e Dó♭ maior para o chip enarmônico, e Ré♯ menor para Mi♭", () => {
+    expect(toPickerKey({ tonic: "Gb", mode: "major" })).toEqual({ tonic: "F#", mode: "major" });
+    expect(toPickerKey({ tonic: "Cb", mode: "major" })).toEqual({ tonic: "B", mode: "major" });
+    expect(toPickerKey({ tonic: "D#", mode: "minor" })).toEqual({ tonic: "Eb", mode: "minor" });
+    expect(toPickerKey({ tonic: "Db", mode: "minor" })).toEqual({ tonic: "C#", mode: "minor" });
+    expect(toPickerKey({ tonic: "C", mode: "major" })).toEqual({ tonic: "C", mode: "major" });
   });
 });
 

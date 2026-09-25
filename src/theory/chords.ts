@@ -95,6 +95,19 @@ export function spellKey(tonic: string, mode: Mode): KeyContext {
   return { tonic, mode };
 }
 
+/** Twelve usual keys per mode. Sol♭ and Dó♭ major stay in the catalog, not in this picker. */
+export const PICKER_MAJORS = ["C", "G", "D", "A", "E", "B", "F#", "Db", "Ab", "Eb", "Bb", "F"] as const;
+export const PICKER_MINORS = ["A", "E", "B", "F#", "C#", "G#", "Eb", "Bb", "F", "C", "G", "D"] as const;
+
+/** Map a catalog key onto a picker chip. Gb major highlights Fá♯; D♯ minor highlights Mi♭. */
+export function toPickerKey(key: KeyContext): KeyContext {
+  const list = key.mode === "major" ? PICKER_MAJORS : PICKER_MINORS;
+  if ((list as readonly string[]).includes(key.tonic)) return { tonic: key.tonic, mode: key.mode };
+  const spelled = Note.enharmonic(key.tonic);
+  if ((list as readonly string[]).includes(spelled)) return { tonic: spelled, mode: key.mode };
+  return { tonic: key.tonic, mode: key.mode };
+}
+
 export function inferKey(root: string, quality: Quality): KeyContext {
   if (quality === "dim") {
     return spellKey(Note.transpose(root, "2m"), "major");

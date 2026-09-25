@@ -176,6 +176,7 @@ function OrbitNode({
   node,
   origin,
   hovered,
+  twin,
   locked,
   exitInstant,
   onHover,
@@ -184,6 +185,7 @@ function OrbitNode({
   node: PlacedChord;
   origin: "stay" | "center" | "inward";
   hovered: boolean;
+  twin: boolean;
   locked: boolean;
   exitInstant: boolean;
   onHover: (id: string | null) => void;
@@ -237,14 +239,17 @@ function OrbitNode({
   }, [exitInstant, pos, present, reduced, ref]);
 
   const strong = move.strong;
-  const emphasized = (hovered || strong) && !locked;
-  const state = locked ? "unavailable" : hovered ? "hover" : strong ? "strong" : "rest";
-  const strokeWidth = emphasized ? 2 : 1.5;
-  const strokeOpacity = emphasized ? 1 : 0.55;
+  const hot = hovered && !locked;
+  const receded = !strong && !hot;
+  const state = locked ? "unavailable" : hot ? "hover" : strong ? "strong" : "receded";
+  const strokeWidth = receded ? 1 : 2;
+  const strokeOpacity = receded ? 0.25 : 1;
+  const symbolFill = receded ? "var(--color-text-muted)" : "var(--color-text)";
+  const degreeFill = hot ? "var(--color-text-secondary)" : "var(--color-text-muted)";
   return (
     <motion.g
       initial={origin === "inward" && !reduced ? { opacity: 0 } : false}
-      animate={{ opacity: locked ? 0.4 : emphasized ? 1 : 0.42 }}
+      animate={{ opacity: locked ? 0.4 : 1 }}
       exit={{ opacity: 0, transition: { duration: exitInstant || reduced ? 0.12 : 0.16 } }}
       transition={{
         duration: reduced ? 0.12 : origin === "inward" ? Math.max(0.08, 0.45 - delay) : 0.2,
@@ -286,22 +291,33 @@ function OrbitNode({
       >
         <circle
           r={node.r}
-          fill={hovered ? color : "var(--color-surface)"}
-          fillOpacity={hovered ? 0.12 : 1}
+          fill={hot ? color : receded ? "var(--color-bg)" : "var(--color-surface)"}
+          fillOpacity={hot ? 0.12 : 1}
           stroke={color}
           strokeOpacity={strokeOpacity}
           strokeWidth={strokeWidth}
         />
+        {twin ? (
+          <circle
+            data-twin="true"
+            r={node.r + 3}
+            fill="none"
+            stroke={color}
+            strokeWidth={1}
+            strokeDasharray="3 2"
+            pointerEvents="none"
+          />
+        ) : null}
         <circle className="focus-ring" r={node.r + 4} />
         <SvgChord
           symbol={move.symbol}
           size={node.ring === 1 ? 14 : 13}
           maxWidth={node.r * 1.6}
           y={node.ring === 4 ? 4 : -3}
-          fill="var(--color-text)"
+          fill={symbolFill}
         />
         {node.ring === 4 ? null : (
-          <text y={10} textAnchor="middle" className="node-roman" fill={hovered ? "var(--color-text-secondary)" : "var(--color-text-muted)"}>
+          <text y={10} textAnchor="middle" className="node-roman" fill={degreeFill}>
             {displayRoman(move.roman)}
           </text>
         )}
@@ -390,7 +406,7 @@ function SectorWord({ id, label, clockwise }: { id: string; label: string; clock
   }, [clockwise]);
   return (
     <text className="sector-label" data-sector={id}>
-      <textPath ref={ref} href={`#sector-arc-${id}`} startOffset="50%" textAnchor="middle">
+      <textPath ref={ref} href={`#sector-arc-${id}`} startOffset="50%" textAnchor="middle" dominantBaseline="central">
         {label}
       </textPath>
     </text>
@@ -554,12 +570,14 @@ export function Navigator() {
           {ordered.map((node) => {
             const id = layoutKey(node.continuation.symbol, node.continuation.group);
             const origin = view.origins[id] ?? "inward";
+            const hoverSymbol = hovered?.continuation.symbol;
             return (
               <OrbitNode
                 key={id}
                 node={node}
                 origin={origin}
                 hovered={hoverId === node.continuation.id}
+                twin={Boolean(!isPlaying && hoverSymbol && hoverSymbol === node.continuation.symbol && hoverId !== node.continuation.id)}
                 locked={isPlaying}
                 exitInstant={node.continuation.symbol === symbol}
                 onHover={setHoverId}
@@ -592,19 +610,28 @@ export function Navigator() {
         />
         {ordered
           .filter((node) => node.label)
-          .map((node) => (
-            <text
-              key={`label-${node.continuation.id}`}
-              x={node.label?.x}
-              y={node.label?.y}
-              textAnchor="middle"
-              className="pivot-label"
-              fillOpacity={isPlaying ? 0.4 : 1}
-              data-pivot-label={node.continuation.id}
-            >
-              {musicGlyphs(node.continuation.caption || pivotLabel(node.continuation.nextKey))}
-            </text>
-          ))}
+          .map((node) => {
+            const captionHot = !isPlaying && (node.continuation.strong || hoverId === node.continuation.id);
+            return (
+              <text
+                key={`label-${node.continuation.id}`}
+                x={node.label?.x}
+                y={node.label?.y}
+                textAnchor="middle"
+                dominantBaseline={node.label?.place === "below" ? "hanging" : "alphabetic"}
+                className="pivot-label"
+                data-pivot-label={node.continuation.id}
+                data-place={node.label?.place}
+                pointerEvents="none"
+                style={{
+                  fill: captionHot ? "var(--color-group-pivot)" : "var(--color-text-muted)",
+                  fillOpacity: isPlaying ? 0.4 : 1,
+                }}
+              >
+                {musicGlyphs(node.continuation.caption || pivotLabel(node.continuation.nextKey))}
+              </text>
+            );
+          })}
         <g className="legend" transform="translate(16 700)">
           {LEGEND.map((item, index) => (
             <g key={item.id} transform={`translate(${[0, 118, 276, 412][index] ?? 0} 0)`}>

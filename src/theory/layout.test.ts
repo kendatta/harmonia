@@ -5,6 +5,8 @@ import {
   CENTER_TRANSITION_MS,
   FRAME,
   angleForRoman,
+  captionPlace,
+  captionPoint,
   layoutContinuations,
   minGapDegrees,
   spreadAngles,
@@ -86,6 +88,52 @@ describe("geometria das continuações", () => {
     expect(angleOf(byId("pivot-fifth-down")!)).toBeCloseTo(330, 5);
     expect(angleOf(byId("pivot-parallel")!)).toBeCloseTo(270, 5);
     expect(angleOf(byId("pivot-relative")!)).toBeCloseTo(0, 5);
+  });
+
+  it("põe a legenda do anel 4 fora do anel, acima só no semicírculo superior", () => {
+    expect(captionPlace(0)).toBe("above");
+    expect(captionPlace(30)).toBe("above");
+    expect(captionPlace(330)).toBe("above");
+    expect(captionPlace(89)).toBe("above");
+    expect(captionPlace(271)).toBe("above");
+    expect(captionPlace(90)).toBe("below");
+    expect(captionPlace(270)).toBe("below");
+    expect(captionPlace(180)).toBe("below");
+
+    const top = captionPoint(360, 48, 19, 0);
+    expect(top).toEqual({ x: 360, y: 21, place: "above" });
+    expect(top.y - 11).toBeCloseTo(10, 5);
+    expect(captionPoint(48, 360, 19, 270)).toEqual({ x: 48, y: 387, place: "below" });
+  });
+
+  it("afasta as legendas do anel 3 e da borda em maior e menor", () => {
+    const keys: { symbol: string; key: Key }[] = [
+      { symbol: "C", key: { tonic: "C", mode: "major" } },
+      { symbol: "Bbm", key: { tonic: "Bb", mode: "minor" } },
+      { symbol: "F#", key: { tonic: "F#", mode: "major" } },
+      { symbol: "Eb", key: { tonic: "Eb", mode: "major" } },
+    ];
+    for (const item of keys) {
+      const nodes = layoutContinuations(getContinuations(item.symbol, item.key), item.key);
+      const inner = nodes.filter((node) => node.ring === 3);
+      for (const node of nodes) {
+        if (!node.label) continue;
+        const textTop = node.label.place === "above" ? node.label.y - 11 : node.label.y;
+        const textBottom = textTop + 11;
+        expect(textTop).toBeGreaterThanOrEqual(4);
+        expect(textBottom).toBeLessThanOrEqual(FRAME.size - 4);
+        if (node.label.place === "above") expect(node.label.y).toBeCloseTo(node.y - node.r - 8, 5);
+        else expect(node.label.y).toBeCloseTo(node.y + node.r + 8, 5);
+        const caption = node.continuation.caption ?? "";
+        const half = Math.max(28, caption.length * 3.6);
+        const box = { cx: node.label.x, cy: (textTop + textBottom) / 2, hw: half, hh: 5.5 };
+        for (const other of inner) {
+          const dx = Math.max(Math.abs(other.x - box.cx) - box.hw, 0);
+          const dy = Math.max(Math.abs(other.y - box.cy) - box.hh, 0);
+          expect(Math.hypot(dx, dy)).toBeGreaterThanOrEqual(other.r + 4);
+        }
+      }
+    }
   });
 
   it("abre em leque só quando dois nós dividem o mesmo ângulo", () => {

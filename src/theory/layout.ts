@@ -52,7 +52,7 @@ export interface PlacedChord {
   ring: 1 | 2 | 3 | 4;
   orbit: number;
   angle: number;
-  label?: { x: number; y: number; anchor: "start" | "middle" | "end" };
+  label?: { x: number; y: number; anchor: "start" | "middle" | "end"; place: "above" | "below" };
 }
 
 export function polar(cx: number, cy: number, radius: number, degFromTop: number): { x: number; y: number } {
@@ -65,6 +65,24 @@ export function polar(cx: number, cy: number, radius: number, degFromTop: number
 
 export function normAngle(angle: number): number {
   return ((angle % 360) + 360) % 360;
+}
+
+/** Top half, open at 90° and 270°, through 0°. Those captions sit above the node. */
+export function captionPlace(angle: number): "above" | "below" {
+  const normalized = normAngle(angle);
+  return normalized < 90 || normalized > 270 ? "above" : "below";
+}
+
+/** 11px caption. Above: alphabetic baseline 8px above the edge. Below: text top 8px below the edge. */
+export function captionPoint(
+  x: number,
+  y: number,
+  r: number,
+  angle: number,
+): { x: number; y: number; place: "above" | "below" } {
+  const place = captionPlace(angle);
+  if (place === "above") return { x, y: y - r - 8, place };
+  return { x, y: y + r + 8, place };
 }
 
 export function degreeNumber(roman: string): number | null {
@@ -248,7 +266,7 @@ export function layoutContinuations(moves: Continuation[], key: KeyContext): Pla
       angle: item.angle,
     };
     if (item.move.group === "pivot") {
-      placed.label = { x: point.x, y: point.y + item.r + 14, anchor: "middle" };
+      placed.label = { ...captionPoint(point.x, point.y, item.r, item.angle), anchor: "middle" };
     }
     return placed;
   });

@@ -146,10 +146,12 @@ sup {
 }
 
 .popover-wide {
-  width: 360px;
-  max-height: min(640px, calc(100vh - 80px));
-  overflow: auto;
-  padding: 16px;
+  width: 400px;
+  max-height: calc(100vh - 72px);
+  overflow: hidden;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .wheel-popover {
@@ -216,7 +218,6 @@ sup {
 }
 
 .pivot-label {
-  fill: var(--color-group-pivot);
   font-size: 11px;
   font-weight: 500;
 }
@@ -678,6 +679,69 @@ sup {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.picker-form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: calc(100vh - 72px);
+  overflow: hidden;
+}
+
+.picker-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 14px 0;
+  overflow: hidden;
+}
+
+.picker-footer {
+  flex: none;
+  padding: 12px 14px 14px;
+}
+
+.picker-apply {
+  width: 100%;
+}
+
+.suggestion {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.mode-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-line);
+}
+
+.mode-option {
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.mode-option[aria-pressed="true"] {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+}
+
+.mode-option:hover {
+  color: var(--color-text);
 }
 
 .panel-head h2 {
