@@ -190,14 +190,6 @@ export function handleShortcutKeydown(event: ShortcutKeyEvent, context: Shortcut
   }
 }
 
-/** Keycap center beside a caption. Flips to the right when the left edge would leave the viewBox. */
-export function keycapBesideLabel(textLeft: number, textRight: number, midY: number): { x: number; y: number } {
-  const half = 6.5;
-  const leftCenter = textLeft - 4 - half;
-  if (leftCenter - half < 4) return { x: textRight + 4 + half, y: midY };
-  return { x: leftCenter, y: midY };
-}
-
 export function shortcutsLabel(pinned: boolean): string {
   return pinned ? "Ocultar atalhos" : "Mostrar atalhos";
 }

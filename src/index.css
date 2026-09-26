@@ -396,6 +396,15 @@ sup {
   stroke-dasharray: 2 4;
 }
 
+@keyframes keycap-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .keycap {
   opacity: 0;
   pointer-events: none;
@@ -403,11 +412,12 @@ sup {
 
 .keycap.is-in {
   opacity: 1;
-  transition: opacity 120ms ease-out;
+  animation: keycap-in 120ms ease-out;
 }
 
 .keycap.is-out {
   opacity: 0;
+  animation: none;
   transition: opacity 200ms ease-out;
 }
 
@@ -417,14 +427,18 @@ sup {
   stroke-width: 1;
 }
 
-.keycap-label {
+.keycap.is-ghost .keycap-shape {
+  fill: var(--color-bg);
+}
+
+.canvas-svg .keycap-label {
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 600;
   fill: var(--color-text-muted);
 }
 
-.orbit-node[data-state="hover"] .keycap-label {
+.keycap[data-hot="true"] .keycap-label {
   fill: var(--color-text-secondary);
 }
 
@@ -450,6 +464,7 @@ sup {
   .keycap,
   .node-roman {
     transition: none;
+    animation: none;
   }
 }
 

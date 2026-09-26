@@ -9,9 +9,11 @@ vi.mock("../audio/piano", () => ({
 }));
 
 import { playChord } from "../audio/piano";
+import { PICKER_MAJORS, PICKER_MINORS } from "../theory/chords";
 import { getContinuations } from "../theory/continuations";
 import { layoutContinuations } from "../theory/layout";
 import type { KeyContext } from "../theory/types";
+import { boxGap, circleGap, layoutMapKeycaps, textWidth, type SceneKeycap } from "./keycapPlace";
 import { createHarmonyStore } from "../store/useHarmonyStore";
 import {
   SHORTCUT_ROWS,
@@ -20,7 +22,6 @@ import {
   createHintMachine,
   handleShortcutKeydown,
   indexByCode,
-  keycapBesideLabel,
   readShortcutsPinned,
   replayCodeForCenter,
   shortcutAria,
@@ -161,7 +162,8 @@ describe("atalhos de teclado", () => {
     ];
     const order = assignShortcuts(tied).map((item) => item.id);
     expect(order).toEqual(["early", "late", "fifth"]);
-    expect(keycapBesideLabel(2, 40, 12).x).toBeGreaterThan(40);
+    const major = layoutMapKeycaps("C", Cmaj);
+    expect(major.keycaps.find((cap) => cap.code === "KeyZ")?.slot).toBe("below");
   });
 
   it("K4 nó excedente fica sem atalho", () => {
@@ -443,5 +445,54 @@ describe("atalhos de teclado", () => {
     expect(block).toContain("var(--color-text-muted)");
     expect(block).toContain("var(--color-text-secondary)");
     expect(block).toContain("var(--color-group-pivot)");
+    expect(block).toContain("var(--color-bg)");
+    expect(block).toContain("ease-out");
+  });
+
+  it("K15 folga das keycaps nas 24 tonalidades", () => {
+    expect(textWidth("mod. direta", 11, "500")).toBeGreaterThan(57);
+    expect(textWidth("mod. direta", 11, "500")).toBeLessThan(60);
+
+    const keys: { symbol: string; key: KeyContext }[] = [
+      ...PICKER_MAJORS.map((tonic) => ({ symbol: tonic, key: { tonic, mode: "major" as const } })),
+      ...PICKER_MINORS.map((tonic) => ({ symbol: `${tonic}m`, key: { tonic, mode: "minor" as const } })),
+    ];
+    expect(keys).toHaveLength(24);
+
+    const offenders: string[] = [];
+    for (const item of keys) {
+      const scene = layoutMapKeycaps(item.symbol, item.key);
+      if (scene.exhausted.length > 0) offenders.push(`${item.symbol}: esgotou ${scene.exhausted.join(",")}`);
+      for (const cap of scene.keycaps) {
+        const where = `${item.key.tonic} ${item.key.mode} ${cap.code}`;
+        if (cap.box.left < 4 || cap.box.top < 4 || cap.box.right > 716 || cap.box.bottom > 716) {
+          offenders.push(`${where}: fora do viewBox`);
+        }
+        for (const circle of scene.circles) {
+          if (circle.id === cap.hostCircleId) continue;
+          if (circleGap(cap.box, circle) < 3 - 1e-6) offenders.push(`${where}: nó ${circle.id}`);
+        }
+        for (const text of scene.texts) {
+          if (cap.hostTextIds.includes(text.id)) continue;
+          if (boxGap(cap.box, text.box) < 3 - 1e-6) offenders.push(`${where}: texto ${text.id}`);
+        }
+        for (const other of scene.keycaps) {
+          if (other.code === cap.code) continue;
+          if (boxGap(cap.box, other.box) < 3 - 1e-6) offenders.push(`${where}: keycap ${other.code}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+
+    const cmaj = layoutMapKeycaps("C", Cmaj);
+    const zed = cmaj.keycaps.find((cap) => cap.code === "KeyZ") as SceneKeycap;
+    const caption = cmaj.texts.find((text) => text.id === zed.captionTextId);
+    expect(zed.slot).toBe("below");
+    expect(zed.captionTextId).toContain("pivot-parallel");
+    expect(caption).toBeTruthy();
+    expect(zed.box.top).toBeGreaterThanOrEqual((caption?.box.bottom ?? 0) + 3 - 1e-6);
+    const mid = ((caption?.box.left ?? 0) + (caption?.box.right ?? 0)) / 2;
+    expect(zed.box.left).toBeLessThan(mid);
+    expect(zed.box.right).toBeGreaterThan(mid);
   });
 });

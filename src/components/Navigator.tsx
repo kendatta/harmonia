@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, animate, motion, useIsPresent, useReducedMotion } from "motion/react";
 import { Keyboard } from "lucide-react";
 import { displayRoman, musicGlyphs } from "../theory/chords";
@@ -29,7 +29,6 @@ import {
   createHintMachine,
   handleShortcutKeydown,
   indexByCode,
-  keycapBesideLabel,
   readShortcutsPinned,
   replayCodeForCenter,
   shortcutLabel,
@@ -40,6 +39,7 @@ import {
   type ShortcutAssignment,
   type ShortcutNode,
 } from "../keyboard/chordShortcuts";
+import { layoutMapKeycaps } from "../keyboard/keycapPlace";
 
 const EASE = CENTER_EASE;
 
@@ -199,7 +199,6 @@ function OrbitNode({
   locked,
   exitInstant,
   shortcut,
-  keycapPhase,
   onHover,
   onPick,
 }: {
@@ -210,7 +209,6 @@ function OrbitNode({
   locked: boolean;
   exitInstant: boolean;
   shortcut: ShortcutAssignment | null;
-  keycapPhase: "enter" | "shown" | "leaving";
   onHover: (id: string | null) => void;
   onPick: (node: PlacedChord) => void;
 }) {
@@ -346,7 +344,6 @@ function OrbitNode({
             {displayRoman(move.roman)}
           </text>
         )}
-        {shortcut && node.ring !== 4 ? <Keycap code={shortcut.code} label={shortcut.label} x={0} y={10} phase={keycapPhase} /> : null}
         <title>{move.detail}</title>
       </g>
     </motion.g>
@@ -609,20 +606,21 @@ export function Navigator() {
   const [keycapPhase, setKeycapPhase] = useState<"off" | "enter" | "shown" | "leaving">(keyhints === "off" ? "off" : "shown");
   useEffect(() => {
     if (keyhints !== "off") {
-      setKeycapPhase("enter");
-      const frame = window.requestAnimationFrame(() => setKeycapPhase("shown"));
-      return () => window.cancelAnimationFrame(frame);
+      setKeycapPhase("shown");
+      return;
     }
-    setKeycapPhase((phase) => (phase === "off" ? "off" : "leaving"));
     if (reduced) {
       setKeycapPhase("off");
       return;
     }
+    setKeycapPhase((phase) => (phase === "off" ? "off" : "leaving"));
     const hide = window.setTimeout(() => setKeycapPhase("off"), 220);
     return () => window.clearTimeout(hide);
   }, [keyhints, reduced]);
   const showKeycaps = keycapPhase !== "off";
   const keycapMotion = keycapPhase === "leaving" ? "leaving" : keycapPhase === "shown" ? "shown" : "enter";
+  const keycapScene = layoutMapKeycaps(symbol, activeKey);
+  const ring4Keycap = new Map(keycapScene.keycaps.filter((cap) => cap.ring === 4).map((cap) => [cap.nodeId, cap]));
 
   const targetLine = (() => {
     if (!hovered || hovered.continuation.group !== "secondary" || isPlaying) return null;
@@ -660,11 +658,6 @@ export function Navigator() {
         ))}
         {ghost ? (
           <circle cx={ghost.x} cy={ghost.y} r={FRAME.nodeDiatonic} className="ghost" data-ghost="true" />
-        ) : null}
-        {showKeycaps && ghost && replayCode ? (
-          <g style={isPlaying ? { opacity: 0.4 } : undefined}>
-            <Keycap code={replayCode} label={shortcutLabel(replayCode)} x={ghost.x} y={ghost.y} phase={keycapMotion} />
-          </g>
         ) : null}
         {targetLine ? (
           <line x1={targetLine.x1} y1={targetLine.y1} x2={targetLine.x2} y2={targetLine.y2} className="target-link" />
@@ -712,7 +705,6 @@ export function Navigator() {
                 locked={isPlaying}
                 exitInstant={node.continuation.symbol === symbol}
                 shortcut={showKeycaps ? (shortcutById.get(node.continuation.id) ?? null) : null}
-                keycapPhase={keycapMotion}
                 onHover={setHoverId}
                 onPick={pickNode}
               />
@@ -734,6 +726,24 @@ export function Navigator() {
             if (!isPlaying) replay();
           }}
         />
+        {showKeycaps ? (
+          <g style={isPlaying ? { opacity: 0.4 } : undefined}>
+            {keycapScene.keycaps
+              .filter((cap) => cap.ring !== 4)
+              .map((cap) => (
+                <Keycap
+                  key={cap.code}
+                  code={cap.code}
+                  label={shortcutLabel(cap.code)}
+                  x={cap.x}
+                  y={cap.y}
+                  phase={keycapMotion}
+                  ghost={cap.hostCircleId === "ghost"}
+                  hot={cap.nodeId != null && !isPlaying && hoverId === cap.nodeId}
+                />
+              ))}
+          </g>
+        ) : null}
         {ordered
           .filter((node) => node.label)
           .map((node) => (
@@ -744,6 +754,7 @@ export function Navigator() {
               faded={isPlaying}
               shortcut={showKeycaps ? (shortcutById.get(node.continuation.id) ?? null) : null}
               phase={keycapMotion}
+              keycap={ring4Keycap.get(node.continuation.id) ?? null}
             />
           ))}
         <g className="legend" transform="translate(16 700)">
@@ -782,29 +793,21 @@ function PivotCaption({
   faded,
   shortcut,
   phase,
+  keycap,
 }: {
   node: PlacedChord;
   hot: boolean;
   faded: boolean;
   shortcut: ShortcutAssignment | null;
   phase: "enter" | "shown" | "leaving";
+  keycap: { x: number; y: number } | null;
 }) {
-  const ref = useRef<SVGTextElement>(null);
   const text = musicGlyphs(node.continuation.caption || pivotLabel(node.continuation.nextKey));
   const x = node.label?.x ?? 0;
   const y = node.label?.y ?? 0;
-  const [box, setBox] = useState<{ left: number; right: number; mid: number } | null>(null);
-  useLayoutEffect(() => {
-    const next = ref.current?.getBBox();
-    if (!next) return;
-    const measured = { left: next.x, right: next.x + next.width, mid: next.y + next.height / 2 };
-    setBox((prev) => (prev && prev.left === measured.left && prev.right === measured.right && prev.mid === measured.mid ? prev : measured));
-  }, [text, x, y]);
-  const place = box ? keycapBesideLabel(box.left, box.right, box.mid) : null;
   return (
     <g style={faded ? { opacity: 0.4 } : undefined}>
       <text
-        ref={ref}
         x={x}
         y={y}
         textAnchor="middle"
@@ -817,9 +820,9 @@ function PivotCaption({
       >
         {text}
       </text>
-      {shortcut && place ? (
+      {shortcut && keycap ? (
         <g className="pivot-keycap" data-hot={hot ? "true" : "false"}>
-          <Keycap code={shortcut.code} label={shortcut.label} x={place.x} y={place.y} phase={phase} />
+          <Keycap code={shortcut.code} label={shortcut.label} x={keycap.x} y={keycap.y} phase={phase} hot={hot} />
         </g>
       ) : null}
     </g>
