@@ -335,8 +335,8 @@ sup {
 }
 
 .canvas-svg {
-  width: min(720px, 100%);
-  height: min(720px, 100%);
+  width: 100%;
+  height: 100%;
   font-family: var(--font-sans);
 }
 
@@ -394,6 +394,126 @@ sup {
   stroke: var(--color-ghost);
   stroke-width: 1;
   stroke-dasharray: 2 4;
+}
+
+.keycap {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.keycap.is-in {
+  opacity: 1;
+  transition: opacity 120ms ease-out;
+}
+
+.keycap.is-out {
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+}
+
+.keycap-shape {
+  fill: none;
+  stroke: var(--color-line-strong);
+  stroke-width: 1;
+}
+
+.keycap-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  fill: var(--color-text-muted);
+}
+
+.orbit-node[data-state="hover"] .keycap-label {
+  fill: var(--color-text-secondary);
+}
+
+.pivot-keycap .keycap-label {
+  fill: var(--color-text-muted);
+}
+
+.pivot-keycap[data-hot="true"] .keycap-label {
+  fill: var(--color-group-pivot);
+}
+
+.canvas-svg[data-keyhints="temp"] .node-roman,
+.canvas-svg[data-keyhints="pinned"] .node-roman {
+  opacity: 0;
+  transition-duration: 120ms;
+}
+
+.node-roman {
+  transition: opacity 200ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .keycap,
+  .node-roman {
+    transition: none;
+  }
+}
+
+.stage {
+  position: relative;
+  width: min(720px, 100%);
+  height: min(720px, 100%);
+}
+
+.shortcuts-toggle {
+  position: absolute;
+  right: 16px;
+  top: calc(696 / 720 * 100% - 16px);
+  z-index: 2;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.shortcuts-toggle:hover,
+.shortcuts-toggle.is-on {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+}
+
+.shortcuts-toggle:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: 2px;
+}
+
+.shortcuts-toggle::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 6;
+  padding: 4px 8px;
+  border: 1px solid var(--color-line);
+  border-radius: 6px;
+  background: var(--color-overlay);
+  box-shadow: var(--shadow-popover);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  letter-spacing: 0;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.shortcuts-toggle:hover::after {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0s linear 500ms, visibility 0s linear 500ms;
 }
 
 .target-link {

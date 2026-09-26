@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence, animate, motion, useIsPresent, useReducedMotion } from "motion/react";
+import { Keyboard } from "lucide-react";
 import { displayRoman, musicGlyphs } from "../theory/chords";
 import { describeChordInKey, getContinuations } from "../theory/continuations";
 import {
@@ -20,8 +21,25 @@ import { chordAria, keyPhrase, pivotLabel } from "../theory/speech";
 import { useHarmonyStore } from "../store/useHarmonyStore";
 import type { Group } from "../theory/types";
 import { SvgChord } from "./ChordSymbol";
+import { Keycap } from "./Keycap";
 import { LEGEND, groupLineRecededVar, groupTintVar, groupVar } from "./groupMeta";
 import { useSoundingProgress } from "./useSounding";
+import {
+  assignShortcuts,
+  createHintMachine,
+  handleShortcutKeydown,
+  indexByCode,
+  keycapBesideLabel,
+  readShortcutsPinned,
+  replayCodeForCenter,
+  shortcutLabel,
+  shortcutProps,
+  shortcutsLabel,
+  writeShortcutsPinned,
+  type Keyhint,
+  type ShortcutAssignment,
+  type ShortcutNode,
+} from "../keyboard/chordShortcuts";
 
 const EASE = CENTER_EASE;
 
@@ -180,6 +198,8 @@ function OrbitNode({
   twin,
   locked,
   exitInstant,
+  shortcut,
+  keycapPhase,
   onHover,
   onPick,
 }: {
@@ -189,6 +209,8 @@ function OrbitNode({
   twin: boolean;
   locked: boolean;
   exitInstant: boolean;
+  shortcut: ShortcutAssignment | null;
+  keycapPhase: "enter" | "shown" | "leaving";
   onHover: (id: string | null) => void;
   onPick: (node: PlacedChord) => void;
 }) {
@@ -272,6 +294,7 @@ function OrbitNode({
         data-strong={strong ? "true" : "false"}
         data-state={state}
         aria-label={chordAria(move)}
+        {...shortcutProps(shortcut?.code)}
         onMouseEnter={() => {
           if (!locked) onHover(move.id);
         }}
@@ -323,6 +346,7 @@ function OrbitNode({
             {displayRoman(move.roman)}
           </text>
         )}
+        {shortcut && node.ring !== 4 ? <Keycap code={shortcut.code} label={shortcut.label} x={0} y={10} phase={keycapPhase} /> : null}
         <title>{move.detail}</title>
       </g>
     </motion.g>
@@ -339,6 +363,7 @@ function CenterDisk({
   progress,
   reduced,
   onReplay,
+  keyshortcuts,
 }: {
   symbol: string;
   roman: string;
@@ -349,6 +374,7 @@ function CenterDisk({
   progress: number;
   reduced: boolean;
   onReplay: () => void;
+  keyshortcuts?: string;
 }) {
   const color = groupVar(group);
   const { setNode } = useNodeMotion(
@@ -385,6 +411,7 @@ function CenterDisk({
         role="button"
         tabIndex={0}
         aria-label={`${symbol}, centro`}
+        aria-keyshortcuts={keyshortcuts}
         onClick={onReplay}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
@@ -497,6 +524,106 @@ export function Navigator() {
     placed.filter((node) => node.ring === 1).map((node) => node.angle),
   );
 
+  const shortcutNodes: ShortcutNode[] = ordered.map((node) => ({
+    id: node.continuation.id,
+    ring: node.ring,
+    roman: node.continuation.roman,
+    angle: node.angle,
+    caption: node.continuation.caption,
+    pivotKind: node.continuation.pivotKind,
+    symbol: node.continuation.symbol,
+  }));
+  const assignments = assignShortcuts(shortcutNodes);
+  const shortcutById = new Map(assignments.map((item) => [item.id, item]));
+  const byCode = indexByCode(shortcutNodes, assignments);
+  const replayCode = replayCodeForCenter(analysis.roman, analysis.group, byCode);
+
+  const machineRef = useRef<ReturnType<typeof createHintMachine> | null>(null);
+  if (machineRef.current === null) {
+    machineRef.current = createHintMachine({
+      set: (fn, ms) => window.setTimeout(fn, ms),
+      clear: (id) => window.clearTimeout(id),
+    });
+    if (readShortcutsPinned(window.localStorage)) machineRef.current.setPinned(true);
+  }
+  const machine = machineRef.current;
+  const [hintMode, setHintMode] = useState<Keyhint>(machine.getMode());
+  useEffect(() => machine.subscribe(setHintMode), [machine]);
+
+  const pickNode = (picked: PlacedChord) => {
+    if (isPlaying) return;
+    setTransitionFrom({
+      x: picked.x,
+      y: picked.y,
+      r: picked.r,
+      symbol: picked.continuation.symbol,
+    });
+    choose(picked.continuation);
+  };
+  const shortcutRef = useRef({ byCode, replayCode, isPlaying, ordered, pickNode, replay });
+  shortcutRef.current = { byCode, replayCode, isPlaying, ordered, pickNode, replay };
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const current = shortcutRef.current;
+      handleShortcutKeydown(event, {
+        byCode: current.byCode,
+        replayCode: current.replayCode,
+        playing: current.isPlaying,
+        popoverOpen: Boolean(document.querySelector("[role='dialog']")),
+        onPick: (node) => {
+          const picked = current.ordered.find((item) => item.continuation.id === node.id);
+          if (picked) current.pickNode(picked);
+        },
+        onReplay: () => {
+          if (!current.isPlaying) current.replay();
+        },
+        onHint: () => machine.shortcut(),
+        onEscape: () => machine.escape(),
+      });
+    };
+    const onFocusIn = (event: FocusEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const node = target.closest(".orbit-node");
+      if (node?.matches(":focus-visible")) machine.setFocused(true);
+    };
+    const onFocusOut = (event: FocusEvent) => {
+      const next = event.relatedTarget;
+      if (next instanceof Element && next.closest(".orbit-node")) return;
+      machine.setFocused(false);
+    };
+    window.addEventListener("keydown", onKey);
+    document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("focusout", onFocusOut);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("focusout", onFocusOut);
+    };
+  }, [machine]);
+
+  const keyhints: Keyhint = isPlaying && hintMode !== "pinned" ? "off" : hintMode;
+  const shortcutsPinned = hintMode === "pinned";
+  const shortcutsText = shortcutsLabel(shortcutsPinned);
+  const [keycapPhase, setKeycapPhase] = useState<"off" | "enter" | "shown" | "leaving">(keyhints === "off" ? "off" : "shown");
+  useEffect(() => {
+    if (keyhints !== "off") {
+      setKeycapPhase("enter");
+      const frame = window.requestAnimationFrame(() => setKeycapPhase("shown"));
+      return () => window.cancelAnimationFrame(frame);
+    }
+    setKeycapPhase((phase) => (phase === "off" ? "off" : "leaving"));
+    if (reduced) {
+      setKeycapPhase("off");
+      return;
+    }
+    const hide = window.setTimeout(() => setKeycapPhase("off"), 220);
+    return () => window.clearTimeout(hide);
+  }, [keyhints, reduced]);
+  const showKeycaps = keycapPhase !== "off";
+  const keycapMotion = keycapPhase === "leaving" ? "leaving" : keycapPhase === "shown" ? "shown" : "enter";
+
   const targetLine = (() => {
     if (!hovered || hovered.continuation.group !== "secondary" || isPlaying) return null;
     const targetRoman = hovered.continuation.roman.split("/")[1];
@@ -509,7 +636,8 @@ export function Navigator() {
 
   return (
     <div className="stage-frame" data-testid="navigator">
-      <svg className="canvas-svg" viewBox="0 0 720 720" width="720" height="720" role="img" aria-label="Mapa harmônico">
+      <div className="stage">
+      <svg className="canvas-svg" viewBox="0 0 720 720" role="img" aria-label="Mapa harmônico" data-keyhints={keyhints}>
         {[FRAME.rDiatonic, FRAME.rSecondary, FRAME.rBorrowed].map((radius) => (
           <circle key={radius} cx={FRAME.c} cy={FRAME.c} r={radius} className="guide" data-guide={radius} />
         ))}
@@ -532,6 +660,11 @@ export function Navigator() {
         ))}
         {ghost ? (
           <circle cx={ghost.x} cy={ghost.y} r={FRAME.nodeDiatonic} className="ghost" data-ghost="true" />
+        ) : null}
+        {showKeycaps && ghost && replayCode ? (
+          <g style={isPlaying ? { opacity: 0.4 } : undefined}>
+            <Keycap code={replayCode} label={shortcutLabel(replayCode)} x={ghost.x} y={ghost.y} phase={keycapMotion} />
+          </g>
         ) : null}
         {targetLine ? (
           <line x1={targetLine.x1} y1={targetLine.y1} x2={targetLine.x2} y2={targetLine.y2} className="target-link" />
@@ -578,16 +711,10 @@ export function Navigator() {
                 twin={Boolean(!isPlaying && hoverSymbol && hoverSymbol === node.continuation.symbol && hoverId !== node.continuation.id)}
                 locked={isPlaying}
                 exitInstant={node.continuation.symbol === symbol}
+                shortcut={showKeycaps ? (shortcutById.get(node.continuation.id) ?? null) : null}
+                keycapPhase={keycapMotion}
                 onHover={setHoverId}
-                onPick={(picked) => {
-                  setTransitionFrom({
-                    x: picked.x,
-                    y: picked.y,
-                    r: picked.r,
-                    symbol: picked.continuation.symbol,
-                  });
-                  choose(picked.continuation);
-                }}
+                onPick={pickNode}
               />
             );
           })}
@@ -602,34 +729,23 @@ export function Navigator() {
           playing={playing}
           progress={progress}
           reduced={reduced}
+          keyshortcuts={replayCode ? shortcutLabel(replayCode).toLowerCase() : undefined}
           onReplay={() => {
             if (!isPlaying) replay();
           }}
         />
         {ordered
           .filter((node) => node.label)
-          .map((node) => {
-            const captionHot = !isPlaying && (node.continuation.strong || hoverId === node.continuation.id);
-            return (
-              <text
-                key={`label-${node.continuation.id}`}
-                x={node.label?.x}
-                y={node.label?.y}
-                textAnchor="middle"
-                dominantBaseline={node.label?.place === "below" ? "hanging" : "alphabetic"}
-                className="pivot-label"
-                data-pivot-label={node.continuation.id}
-                data-place={node.label?.place}
-                pointerEvents="none"
-                style={{
-                  fill: captionHot ? "var(--color-group-pivot)" : "var(--color-text-muted)",
-                  fillOpacity: isPlaying ? 0.4 : 1,
-                }}
-              >
-                {musicGlyphs(node.continuation.caption || pivotLabel(node.continuation.nextKey))}
-              </text>
-            );
-          })}
+          .map((node) => (
+            <PivotCaption
+              key={`label-${node.continuation.id}`}
+              node={node}
+              hot={!isPlaying && (node.continuation.strong || hoverId === node.continuation.id)}
+              faded={isPlaying}
+              shortcut={showKeycaps ? (shortcutById.get(node.continuation.id) ?? null) : null}
+              phase={keycapMotion}
+            />
+          ))}
         <g className="legend" transform="translate(16 700)">
           {LEGEND.map((item, index) => (
             <g key={item.id} transform={`translate(${[0, 118, 276, 412][index] ?? 0} 0)`}>
@@ -641,6 +757,71 @@ export function Navigator() {
           ))}
         </g>
       </svg>
+      <button
+        type="button"
+        className={shortcutsPinned ? "shortcuts-toggle is-on" : "shortcuts-toggle"}
+        aria-label={shortcutsText}
+        data-tooltip={shortcutsText}
+        data-testid="shortcuts-toggle"
+        onClick={() => {
+          const next = !machine.isPinned();
+          machine.setPinned(next);
+          writeShortcutsPinned(window.localStorage, next);
+        }}
+      >
+        <Keyboard size={16} strokeWidth={1.5} />
+      </button>
+      </div>
     </div>
+  );
+}
+
+function PivotCaption({
+  node,
+  hot,
+  faded,
+  shortcut,
+  phase,
+}: {
+  node: PlacedChord;
+  hot: boolean;
+  faded: boolean;
+  shortcut: ShortcutAssignment | null;
+  phase: "enter" | "shown" | "leaving";
+}) {
+  const ref = useRef<SVGTextElement>(null);
+  const text = musicGlyphs(node.continuation.caption || pivotLabel(node.continuation.nextKey));
+  const x = node.label?.x ?? 0;
+  const y = node.label?.y ?? 0;
+  const [box, setBox] = useState<{ left: number; right: number; mid: number } | null>(null);
+  useLayoutEffect(() => {
+    const next = ref.current?.getBBox();
+    if (!next) return;
+    const measured = { left: next.x, right: next.x + next.width, mid: next.y + next.height / 2 };
+    setBox((prev) => (prev && prev.left === measured.left && prev.right === measured.right && prev.mid === measured.mid ? prev : measured));
+  }, [text, x, y]);
+  const place = box ? keycapBesideLabel(box.left, box.right, box.mid) : null;
+  return (
+    <g style={faded ? { opacity: 0.4 } : undefined}>
+      <text
+        ref={ref}
+        x={x}
+        y={y}
+        textAnchor="middle"
+        dominantBaseline={node.label?.place === "below" ? "hanging" : "alphabetic"}
+        className="pivot-label"
+        data-pivot-label={node.continuation.id}
+        data-place={node.label?.place}
+        pointerEvents="none"
+        fill={hot ? "var(--color-group-pivot)" : "var(--color-text-muted)"}
+      >
+        {text}
+      </text>
+      {shortcut && place ? (
+        <g className="pivot-keycap" data-hot={hot ? "true" : "false"}>
+          <Keycap code={shortcut.code} label={shortcut.label} x={place.x} y={place.y} phase={phase} />
+        </g>
+      ) : null}
+    </g>
   );
 }
