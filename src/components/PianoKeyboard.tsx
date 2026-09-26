@@ -1,5 +1,5 @@
 import { keyboardStart, voicedMidis } from "../theory/chords";
-import { groupVar, keyLitRestVar } from "./groupMeta";
+import { keyLitRestVar, keyLitVar } from "./groupMeta";
 import type { Group } from "../theory/types";
 
 const WHITE = new Set([0, 2, 4, 5, 7, 9, 11]);
@@ -29,20 +29,20 @@ export function PianoKeyboard({
   const whiteH = 88;
   const blackW = 13;
   const blackH = 54;
-  const color = groupVar(group);
+  const litColor = keyLitVar(group);
   const rest = keyLitRestVar(group);
   const blacks = Array.from({ length: 24 }, (_, index) => start + index).filter((midi) => !WHITE.has(midi % 12));
 
   return (
     <svg className="keyboard" viewBox="0 0 312 88" width="312" height="88" role="img" aria-label="Tecladinho do voicing" data-testid="piano">
-      <rect width="312" height="88" fill="var(--color-bg)" />
+      <rect width="312" height="88" fill="var(--color-key-frame)" />
       {whites.map((midi, index) => {
         const x = index * (whiteW + 1);
         const on = lit.has(midi);
         return (
           <g key={midi} data-midi={midi} data-lit={on ? "true" : "false"} data-root={midi === root ? "true" : "false"}>
-            <path d={keyPath(x, 0, whiteW, whiteH, 3)} fill={on ? (active ? color : rest) : "var(--color-key-white)"} fillOpacity={1} />
-            {on && midi === root ? <circle cx={x + whiteW / 2} cy={whiteH * (5 / 6)} r={2.5} fill="var(--color-bg)" /> : null}
+            <path d={keyPath(x, 0, whiteW, whiteH, 3)} fill={on ? (active ? litColor : rest) : "var(--color-key-white)"} fillOpacity={1} />
+            {on && midi === root ? <circle cx={x + whiteW / 2} cy={whiteH * (5 / 6)} r={2.5} fill="var(--color-key-root)" /> : null}
           </g>
         );
       })}
@@ -54,8 +54,8 @@ export function PianoKeyboard({
         const on = lit.has(midi);
         return (
           <g key={midi} data-midi={midi} data-lit={on ? "true" : "false"} data-root={midi === root ? "true" : "false"}>
-            <path d={keyPath(x, 0, blackW, blackH, 3)} fill={on ? (active ? color : rest) : "var(--color-key-black)"} fillOpacity={1} />
-            {on && midi === root ? <circle cx={x + blackW / 2} cy={blackH * (5 / 6)} r={2.5} fill="var(--color-bg)" /> : null}
+            <path d={keyPath(x, 0, blackW, blackH, 3)} fill={on ? (active ? litColor : rest) : "var(--color-key-black)"} fillOpacity={1} />
+            {on && midi === root ? <circle cx={x + blackW / 2} cy={blackH * (5 / 6)} r={2.5} fill="var(--color-key-root)" /> : null}
           </g>
         );
       })}

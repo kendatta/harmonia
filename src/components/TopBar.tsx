@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { ArrowLeft, ChevronDown } from "lucide-react";
+import { ArrowLeft, ChevronDown, Moon, Sun } from "lucide-react";
 import { musicGlyphs } from "../theory/chords";
 import { polar } from "../theory/layout";
 import { keyPhrase } from "../theory/speech";
@@ -10,6 +10,7 @@ import { useEngine, useSoundChoice } from "./useEngine";
 import { plainSymbol } from "../theory/symbol";
 import { ChordPicker } from "./ChordPicker";
 import { Button } from "./ui/button";
+import { useTheme } from "../theme/useTheme";
 
 function SoundToggle({ choice }: { choice: SoundChoice }) {
   const pianoRef = useRef<HTMLButtonElement | null>(null);
@@ -55,6 +56,16 @@ function SoundToggle({ choice }: { choice: SoundChoice }) {
         Sintetizador
       </button>
     </div>
+  );
+}
+
+function ThemeToggle() {
+  const { theme, toggle, label } = useTheme();
+  const Icon = theme === "dark" ? Sun : Moon;
+  return (
+    <button type="button" className="theme-toggle" aria-label={label} data-tooltip={label} data-testid="theme-toggle" onClick={toggle}>
+      <Icon size={16} strokeWidth={1.5} />
+    </button>
   );
 }
 
@@ -191,6 +202,7 @@ export function TopBar() {
             </div>
           ) : null}
         </div>
+        <ThemeToggle />
       </div>
     </header>
   );

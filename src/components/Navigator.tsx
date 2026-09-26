@@ -20,7 +20,7 @@ import { chordAria, keyPhrase, pivotLabel } from "../theory/speech";
 import { useHarmonyStore } from "../store/useHarmonyStore";
 import type { Group } from "../theory/types";
 import { SvgChord } from "./ChordSymbol";
-import { LEGEND, groupVar } from "./groupMeta";
+import { LEGEND, groupLineRecededVar, groupLineVar, groupTintVar, groupVar } from "./groupMeta";
 import { useSoundingProgress } from "./useSounding";
 
 const EASE = CENTER_EASE;
@@ -243,8 +243,9 @@ function OrbitNode({
   const hot = hovered && !locked;
   const receded = !strong && !hot;
   const state = locked ? "unavailable" : hot ? "hover" : strong ? "strong" : "receded";
-  const strokeWidth = receded ? 2.5 : 3.5;
-  const strokeOpacity = receded ? 0.6 : 1;
+  const stroke = hot ? color : receded ? groupLineRecededVar(move.group) : groupLineVar(move.group);
+  const strokeWidth = hot ? "var(--node-stroke-width-hover)" : receded ? "var(--node-stroke-width-receded)" : "var(--node-stroke-width)";
+  const strokeOpacity = hot ? "var(--node-stroke-opacity-hover)" : receded ? "var(--node-stroke-opacity-receded)" : "var(--node-stroke-opacity)";
   const symbolFill = receded ? "var(--color-text-muted)" : "var(--color-text)";
   const degreeFill = hot ? "var(--color-text-secondary)" : "var(--color-text-muted)";
   return (
@@ -292,9 +293,9 @@ function OrbitNode({
       >
         <circle
           r={node.r}
-          fill={hot ? color : receded ? "var(--color-bg)" : "var(--color-surface)"}
-          fillOpacity={hot ? 0.12 : 1}
-          stroke={color}
+          fill={hot ? groupTintVar(move.group) : receded ? "var(--color-bg)" : "var(--color-surface)"}
+          fillOpacity={hot ? "var(--node-hover-fill-opacity)" : 1}
+          stroke={stroke}
           strokeOpacity={strokeOpacity}
           strokeWidth={strokeWidth}
         />
@@ -364,21 +365,17 @@ function CenterDisk({
 
   return (
     <g ref={setNode} data-testid="center-chord" data-state={playing ? "playing" : "selected"} data-group={group}>
-      {playing && !reduced ? (
-        <motion.circle
-          r={55}
-          fill="none"
-          stroke={color}
-          strokeWidth={10}
-          initial={{ opacity: 0.35 }}
-          animate={{ opacity: 0 }}
-          transition={{ duration: 0.42, ease: [EASE[0], EASE[1], EASE[2], EASE[3]] }}
-        />
-      ) : null}
+      {playing && !reduced ? <circle className="attack-halo" r={55} fill="none" stroke={color} strokeWidth={10} /> : null}
       {playing ? <DrainArc radius={FRAME.centerR + 5} color={color} progress={progress} /> : null}
       <circle r={FRAME.centerR} fill={playing ? color : "var(--color-text)"} />
-      <SvgChord symbol={symbol} size={28} maxWidth={FRAME.centerR * 1.6} y={-6} fill="var(--color-bg)" />
-      <text y={16} textAnchor="middle" className="center-meta" fill="var(--color-bg)" fillOpacity={0.7}>
+      <SvgChord symbol={symbol} size={28} maxWidth={FRAME.centerR * 1.6} y={-6} fill={playing ? "var(--color-on-group)" : "var(--color-bg)"} />
+      <text
+        y={16}
+        textAnchor="middle"
+        className="center-meta"
+        fill={playing ? "var(--color-on-group)" : "var(--color-on-center-muted)"}
+        fillOpacity={playing ? "var(--opacity-center-playing-meta)" : "var(--opacity-center-meta)"}
+      >
         {displayRoman(roman)} · {subtitle}
       </text>
       <circle
