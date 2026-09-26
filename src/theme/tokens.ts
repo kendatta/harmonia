@@ -39,9 +39,6 @@ export interface ThemeTokens {
   haloOpacity: number;
   centerMetaOpacity: number;
   centerPlayingMetaOpacity: number;
-  nodeStrokeWidth: number;
-  nodeStrokeWidthHover: number;
-  nodeStrokeWidthReceded: number;
   nodeStrokeOpacity: number;
   nodeStrokeOpacityHover: number;
   nodeStrokeOpacityReceded: number;
@@ -94,9 +91,6 @@ const dark: ThemeTokens = {
   haloOpacity: 0.35,
   centerMetaOpacity: 0.7,
   centerPlayingMetaOpacity: 0.7,
-  nodeStrokeWidth: 3.5,
-  nodeStrokeWidthHover: 3.5,
-  nodeStrokeWidthReceded: 2.5,
   nodeStrokeOpacity: 1,
   nodeStrokeOpacityHover: 1,
   nodeStrokeOpacityReceded: 0.6,
@@ -119,7 +113,7 @@ const light: ThemeTokens = {
   onCenterMuted: "#B4B4B2",
   group: { diatonic: "#4B4439", secondary: "#8C5A12", borrowed: "#2D62A8", pivot: "#1F6E5B" },
   groupLine: { diatonic: "#6D685E", secondary: "#A1793F", borrowed: "#5580B7", pivot: "#4A8979" },
-  groupLineReceded: { diatonic: "#C3C1BB", secondary: "#D7C7B0", borrowed: "#BACADC", pivot: "#B6CDC5" },
+  groupLineReceded: { diatonic: "#767068", secondary: "#A7814A", borrowed: "#6087BB", pivot: "#559081" },
   groupTint: { diatonic: "#E6E4E0", secondary: "#ECE6DD", borrowed: "#E3E7EC", pivot: "#E1E8E4" },
   keyLit: { diatonic: "#817C74", secondary: "#9E7438", borrowed: "#517DB7", pivot: "#458777" },
   keyLitRest: { diatonic: "#95918A", secondary: "#AE8C59", borrowed: "#7094C4", pivot: "#679C8F" },
@@ -134,9 +128,6 @@ const light: ThemeTokens = {
   haloOpacity: 0.25,
   centerMetaOpacity: 1,
   centerPlayingMetaOpacity: 1,
-  nodeStrokeWidth: 1.5,
-  nodeStrokeWidthHover: 2,
-  nodeStrokeWidthReceded: 1,
   nodeStrokeOpacity: 1,
   nodeStrokeOpacityHover: 1,
   nodeStrokeOpacityReceded: 1,
@@ -168,6 +159,9 @@ export const radius = { sm: 4, md: 6, lg: 10, pill: 999 } as const;
 export const motion = { fast: 0.12, base: 0.2, move: 0.42, ease: [0.22, 1, 0.36, 1] as const } as const;
 
 export const opacity = { disabled: 0.4, restStroke: 0.55 } as const;
+
+/** Node outline geometry. Both themes use it; only the stroke color changes. */
+export const nodeStroke = { normal: 3.5, receded: 2.5 } as const;
 
 /** Popovers are the only elevation allowed to use a shadow. */
 export const shadow = { popover: dark.shadowPopover } as const;
@@ -212,9 +206,6 @@ export function themeDeclarations(theme: ThemeName): Record<string, string> {
     "--halo-opacity": String(t.haloOpacity),
     "--opacity-center-meta": String(t.centerMetaOpacity),
     "--opacity-center-playing-meta": String(t.centerPlayingMetaOpacity),
-    "--node-stroke-width": String(t.nodeStrokeWidth),
-    "--node-stroke-width-hover": String(t.nodeStrokeWidthHover),
-    "--node-stroke-width-receded": String(t.nodeStrokeWidthReceded),
     "--node-stroke-opacity": String(t.nodeStrokeOpacity),
     "--node-stroke-opacity-hover": String(t.nodeStrokeOpacityHover),
     "--node-stroke-opacity-receded": String(t.nodeStrokeOpacityReceded),

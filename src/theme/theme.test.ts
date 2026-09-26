@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { THEME_STORAGE_KEY, commitToggle, resolveTheme, syncTheme, toggleTheme, type ThemeName, type ThemeStorage } from "./theme";
-import { themeDeclarations, themes } from "./tokens";
+import { nodeStroke, themeDeclarations, themes } from "./tokens";
 
 function memoryStorage(initial?: string): ThemeStorage & { dump: () => string | null } {
   let value = initial ?? null;
@@ -90,8 +90,7 @@ describe("tema", () => {
     expect(themes.dark.keyLit).toEqual(themes.dark.group);
     expect(themes.dark.onGroup).toBe("#0E0F11");
     expect(themes.dark.overlay).toBe(themes.dark.surfaceRaised);
-    expect(themes.dark.nodeStrokeWidth).toBe(3.5);
-    expect(themes.dark.nodeStrokeWidthReceded).toBe(2.5);
+    expect(nodeStroke).toEqual({ normal: 3.5, receded: 2.5 });
     expect(themes.dark.nodeStrokeOpacity).toBe(1);
     expect(themes.dark.nodeStrokeOpacityReceded).toBe(0.6);
     expect(themes.dark.hoverFillOpacity).toBe(0.12);
@@ -109,7 +108,12 @@ describe("tema", () => {
     expect(themes.light.onCenterMuted).toBe("#B4B4B2");
     expect(themes.light.group).toEqual({ diatonic: "#4B4439", secondary: "#8C5A12", borrowed: "#2D62A8", pivot: "#1F6E5B" });
     expect(themes.light.groupLine.secondary).toBe("#A1793F");
-    expect(themes.light.groupLineReceded.pivot).toBe("#B6CDC5");
+    expect(themes.light.groupLineReceded).toEqual({
+      diatonic: "#767068",
+      secondary: "#A7814A",
+      borrowed: "#6087BB",
+      pivot: "#559081",
+    });
     expect(themes.light.keyLit.borrowed).toBe("#517DB7");
     expect(themes.light.keyLitRest.secondary).toBe("#AE8C59");
     expect(themes.light.keyBlack).toBe("#2B2E33");
@@ -117,9 +121,8 @@ describe("tema", () => {
     expect(themes.light.keyFrame).toBe(themes.light.lineStrong);
     expect(themes.light.keyRoot).toBe(themes.light.text);
     expect(themes.light.ghost).toBe(themes.light.lineStrong);
-    expect(themes.light.nodeStrokeWidth).toBe(1.5);
-    expect(themes.light.nodeStrokeWidthHover).toBe(2);
-    expect(themes.light.nodeStrokeWidthReceded).toBe(1);
+    expect(themes.light.nodeStrokeOpacity).toBe(1);
+    expect(themes.light.nodeStrokeOpacityReceded).toBe(1);
     expect(themes.light.haloOpacity).toBe(0.25);
   });
 
@@ -128,6 +131,10 @@ describe("tema", () => {
     const html = readFileSync(new URL("../../index.html", import.meta.url), "utf8");
     expect(cssBlock(css, "dark")).toEqual(themeDeclarations("dark"));
     expect(cssBlock(css, "light")).toEqual(themeDeclarations("light"));
+    expect(css).toContain("--node-stroke-width: 3.5;");
+    expect(css).toContain("--node-stroke-width-receded: 2.5;");
+    expect(cssBlock(css, "light")["--node-stroke-width"]).toBeUndefined();
+    expect(cssBlock(css, "dark")["--node-stroke-width"]).toBeUndefined();
 
     expect(html).toContain('var key = "harmonia.theme"');
     expect(html).toContain('localStorage.removeItem(key)');

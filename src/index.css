@@ -25,6 +25,8 @@
   font-family: var(--font-sans);
   background: var(--color-bg);
   color: var(--color-text);
+  --node-stroke-width: 3.5;
+  --node-stroke-width-receded: 2.5;
 }
 
 /* Dark matches v7. Light is the L2 table. Both blocks must stay in sync with themeDeclarations(). */
@@ -79,9 +81,6 @@
   --halo-opacity: 0.35;
   --opacity-center-meta: 0.7;
   --opacity-center-playing-meta: 0.7;
-  --node-stroke-width: 3.5;
-  --node-stroke-width-hover: 3.5;
-  --node-stroke-width-receded: 2.5;
   --node-stroke-opacity: 1;
   --node-stroke-opacity-hover: 1;
   --node-stroke-opacity-receded: 0.6;
@@ -111,10 +110,10 @@
   --color-group-line-secondary: #A1793F;
   --color-group-line-borrowed: #5580B7;
   --color-group-line-pivot: #4A8979;
-  --color-group-line-receded-diatonic: #C3C1BB;
-  --color-group-line-receded-secondary: #D7C7B0;
-  --color-group-line-receded-borrowed: #BACADC;
-  --color-group-line-receded-pivot: #B6CDC5;
+  --color-group-line-receded-diatonic: #767068;
+  --color-group-line-receded-secondary: #A7814A;
+  --color-group-line-receded-borrowed: #6087BB;
+  --color-group-line-receded-pivot: #559081;
   --color-group-tint-diatonic: #E6E4E0;
   --color-group-tint-secondary: #ECE6DD;
   --color-group-tint-borrowed: #E3E7EC;
@@ -138,9 +137,6 @@
   --halo-opacity: 0.25;
   --opacity-center-meta: 1;
   --opacity-center-playing-meta: 1;
-  --node-stroke-width: 1.5;
-  --node-stroke-width-hover: 2;
-  --node-stroke-width-receded: 1;
   --node-stroke-opacity: 1;
   --node-stroke-opacity-hover: 1;
   --node-stroke-opacity-receded: 1;

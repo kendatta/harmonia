@@ -20,7 +20,7 @@ import { chordAria, keyPhrase, pivotLabel } from "../theory/speech";
 import { useHarmonyStore } from "../store/useHarmonyStore";
 import type { Group } from "../theory/types";
 import { SvgChord } from "./ChordSymbol";
-import { LEGEND, groupLineRecededVar, groupLineVar, groupTintVar, groupVar } from "./groupMeta";
+import { LEGEND, groupLineRecededVar, groupTintVar, groupVar } from "./groupMeta";
 import { useSoundingProgress } from "./useSounding";
 
 const EASE = CENTER_EASE;
@@ -243,8 +243,8 @@ function OrbitNode({
   const hot = hovered && !locked;
   const receded = !strong && !hot;
   const state = locked ? "unavailable" : hot ? "hover" : strong ? "strong" : "receded";
-  const stroke = hot ? color : receded ? groupLineRecededVar(move.group) : groupLineVar(move.group);
-  const strokeWidth = hot ? "var(--node-stroke-width-hover)" : receded ? "var(--node-stroke-width-receded)" : "var(--node-stroke-width)";
+  const stroke = receded ? groupLineRecededVar(move.group) : color;
+  const strokeWidth = receded ? "var(--node-stroke-width-receded)" : "var(--node-stroke-width)";
   const strokeOpacity = hot ? "var(--node-stroke-opacity-hover)" : receded ? "var(--node-stroke-opacity-receded)" : "var(--node-stroke-opacity)";
   const symbolFill = receded ? "var(--color-text-muted)" : "var(--color-text)";
   const degreeFill = hot ? "var(--color-text-secondary)" : "var(--color-text-muted)";
