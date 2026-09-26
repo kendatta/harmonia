@@ -93,6 +93,14 @@ sup {
   min-width: 0;
 }
 
+.top-left {
+  flex: 1;
+}
+
+.top-right {
+  flex: none;
+}
+
 .wordmark {
   font-size: 16px;
   line-height: 24px;
@@ -111,6 +119,43 @@ sup {
   color: var(--color-text-muted);
   font-size: 12px;
   white-space: nowrap;
+}
+
+.sound-toggle {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-line);
+}
+
+.sound-option {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.sound-option[aria-checked="true"] {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+}
+
+.sound-option:hover {
+  color: var(--color-text);
+}
+
+.sound-option:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: 1px;
 }
 
 .key-button {
