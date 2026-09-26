@@ -5,7 +5,28 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Navegador harmônico: caminhe de acorde em acorde, ouça o piano e salve progressões." />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F7F6F3" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0E0F11" />
     <title>Harmonia</title>
+    <script>
+      /* Keep in step with resolveTheme() in src/theme/theme.ts. Runs before first paint. */
+      (function () {
+        var key = "harmonia.theme";
+        var theme = "dark";
+        try {
+          var stored = localStorage.getItem(key);
+          var system = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          var chosen = stored === "light" || stored === "dark" ? stored : system;
+          theme = chosen === system ? system : chosen;
+          if (chosen === system) localStorage.removeItem(key);
+        } catch (e) {}
+        document.documentElement.setAttribute("data-theme", theme);
+      })();
+    </script>
+    <style>
+      html[data-theme="dark"] { background: #0E0F11; color-scheme: dark; }
+      html[data-theme="light"] { background: #F7F6F3; color-scheme: light; }
+    </style>
   </head>
   <body>
     <div id="root"></div>

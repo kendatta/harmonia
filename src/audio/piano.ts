@@ -48,16 +48,36 @@ export function holdSeconds(audibleSeconds: number): number {
   return Math.max(0.05, audibleSeconds - RELEASE_SECONDS);
 }
 
+export type SoundChoice = "piano" | "synth";
+
+export const SOUND_STORAGE_KEY = "navegador-harmonico.sound.v1";
+
+/** URL `?synth=1` wins over storage. Anything else stored falls back to piano. */
+export function soundChoiceFrom(search: string, stored: string | null): SoundChoice {
+  if (new URLSearchParams(search).get("synth") === "1") return "synth";
+  if (stored === "synth" || stored === "piano") return stored;
+  return "piano";
+}
+
+/** Piano uses the sampler only after it has loaded. Otherwise the synth plays. */
+export function playerFor(choice: SoundChoice, samplerLoaded: boolean): "sampler" | "synth" {
+  if (choice === "piano" && samplerLoaded) return "sampler";
+  return "synth";
+}
+
+/** Status while Piano is selected and the samples are not ready. Synth selection stays quiet. */
+export function soundStatus(choice: SoundChoice, current: Engine): string | null {
+  if (choice !== "piano") return null;
+  if (current === "loading") return "Carregando piano…";
+  if (current === "synth") return "Amostras indisponíveis · sintetizador";
+  return null;
+}
+
 type Player = {
   triggerAttackRelease: (notes: string[], duration: number, time?: number) => void;
   triggerRelease?: (notes: string[], time?: number) => void;
   releaseAll?: (time?: number) => void;
 };
-
-function preferSynth(): boolean {
-  if (typeof window === "undefined") return false;
-  return new URLSearchParams(window.location.search).get("synth") === "1";
-}
 
 let output: Tone.Volume | null = null;
 let sampler: Tone.Sampler | null = null;
@@ -66,7 +86,48 @@ let engine: Engine = "idle";
 let samplerReady: Promise<boolean> | null = null;
 let held: string[] = [];
 let request = 0;
+let choice: SoundChoice | null = null;
 const listeners = new Set<(next: Engine) => void>();
+const choiceListeners = new Set<(next: SoundChoice) => void>();
+
+function readStored(): string | null {
+  if (typeof localStorage === "undefined") return null;
+  try {
+    return localStorage.getItem(SOUND_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function loadSoundChoice(search?: string): SoundChoice {
+  const query = search ?? (typeof window === "undefined" ? "" : window.location.search);
+  choice = soundChoiceFrom(query, readStored());
+  for (const listener of choiceListeners) listener(choice);
+  return choice;
+}
+
+export function getSoundChoice(): SoundChoice {
+  if (choice === null) return loadSoundChoice();
+  return choice;
+}
+
+export function setSoundChoice(next: SoundChoice): void {
+  choice = next;
+  if (typeof localStorage !== "undefined") {
+    try {
+      localStorage.setItem(SOUND_STORAGE_KEY, next);
+    } catch {
+      // The choice still applies for this session.
+    }
+  }
+  for (const listener of choiceListeners) listener(next);
+}
+
+export function subscribeSoundChoice(listener: (next: SoundChoice) => void): () => void {
+  choiceListeners.add(listener);
+  listener(getSoundChoice());
+  return () => choiceListeners.delete(listener);
+}
 
 function emit(next: Engine) {
   engine = next;
@@ -130,7 +191,7 @@ export async function playChord(pitchClasses: string[], seconds: number): Promis
   if (mine !== request) return false;
 
   const notes = voiceChord(pitchClasses);
-  const player: Player | null = !preferSynth() && sampler?.loaded ? sampler : synth;
+  const player: Player | null = playerFor(getSoundChoice(), Boolean(sampler?.loaded)) === "sampler" ? sampler : synth;
   if (!player) return false;
   const now = Tone.now();
   releaseHeld(now);

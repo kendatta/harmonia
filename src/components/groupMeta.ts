@@ -1,32 +1,38 @@
 import type { Group } from "../theory/types";
 
-/** Solid fill for a key that has sounded and gone quiet. */
-export function keyLitRestVar(group: Group | "chromatic"): string {
-  switch (group) {
-    case "secondary":
-      return "var(--color-key-lit-rest-secondary)";
-    case "borrowed":
-      return "var(--color-key-lit-rest-borrowed)";
-    case "pivot":
-      return "var(--color-key-lit-rest-pivot)";
-    default:
-      return "var(--color-key-lit-rest-diatonic)";
-  }
+type ScaleName = "diatonic" | "secondary" | "borrowed" | "pivot";
+
+function scaleName(group: Group | "chromatic"): ScaleName {
+  if (group === "secondary" || group === "borrowed" || group === "pivot") return group;
+  return "diatonic";
 }
 
 export function groupVar(group: Group | "chromatic"): string {
-  switch (group) {
-    case "secondary":
-      return "var(--color-group-secondary)";
-    case "borrowed":
-      return "var(--color-group-borrowed)";
-    case "pivot":
-      return "var(--color-group-pivot)";
-    case "chromatic":
-      return "var(--color-text-muted)";
-    default:
-      return "var(--color-group-diatonic)";
-  }
+  if (group === "chromatic") return "var(--color-text-muted)";
+  return `var(--color-group-${scaleName(group)})`;
+}
+
+export function groupLineVar(group: Group | "chromatic"): string {
+  if (group === "chromatic") return "var(--color-text-muted)";
+  return `var(--color-group-line-${scaleName(group)})`;
+}
+
+export function groupLineRecededVar(group: Group | "chromatic"): string {
+  return `var(--color-group-line-receded-${scaleName(group)})`;
+}
+
+export function groupTintVar(group: Group | "chromatic"): string {
+  return `var(--color-group-tint-${scaleName(group)})`;
+}
+
+/** Key fill while the chord is sounding. Dark matches the group color. */
+export function keyLitVar(group: Group | "chromatic"): string {
+  return `var(--color-key-lit-${scaleName(group)})`;
+}
+
+/** Solid fill for a key that has sounded and gone quiet. */
+export function keyLitRestVar(group: Group | "chromatic"): string {
+  return `var(--color-key-lit-rest-${scaleName(group)})`;
 }
 
 export function familyName(group: Group | "chromatic", roman?: string): string {

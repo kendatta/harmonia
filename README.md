@@ -13,7 +13,7 @@ A interface é em português (Brasil). Não há login nem servidor: tudo roda no
   - **Dominantes secundárias** (âmbar): o V7 de cada grau, posicionado no ângulo do acorde que ele prepara.
   - **Empréstimos modais** (azul): acordes do modo paralelo, como iv, ♭III, ♭VI e ♭VII no tom maior.
   - **Pivôs** (verde-sálvia): acordes-porta para o relativo, o paralelo e os tons vizinhos a uma quinta. Clicar em um deles muda o tom.
-- **Som de piano.** Cada acorde toca por cerca de 3 segundos com amostras de piano reais (Salamander), com um sintetizador de reserva se as amostras não carregarem.
+- **Som.** Cada acorde toca por cerca de 3 segundos. O seletor **Piano / Sintetizador**, na barra de cima, escolhe amostras de piano (Salamander) ou um sintetizador, e a escolha fica salva no navegador. Se as amostras ainda carregam ou falham, o sintetizador toca no lugar e a barra diz isso.
 - **Teclado e notas.** O acorde escolhido aparece num teclado, com o nome e o intervalo de cada nota.
 - **Sugestão de próximo passo.** Um traço mais forte liga o centro aos passos mais prováveis a partir da função do acorde atual. Passar o cursor sobre um acorde mostra a explicação.
 - **Progressões.** O caminho percorrido fica na barra lateral. Dá para salvar, carregar e tocar progressões, com velocidade de 0,5× a 2,0×.
@@ -67,7 +67,7 @@ Quando o mesmo acorde aparece duas vezes, a diferença é o destino. Em Dó maio
 
 - [TypeScript](https://www.typescriptlang.org), [React](https://react.dev) e [Vite](https://vite.dev)
 - [Tonal](https://github.com/tonaljs/tonal) para a teoria musical
-- [Tone.js](https://tonejs.github.io) para o áudio (Sampler com amostras Salamander e PolySynth de reserva)
+- [Tone.js](https://tonejs.github.io) para o áudio: Sampler (Salamander) ou PolySynth, escolhidos no seletor Piano / Sintetizador
 - SVG com [Motion](https://motion.dev) para o mapa e as animações
 - [Zustand](https://github.com/pmndrs/zustand) para o estado, persistido em `localStorage`
 - [Tailwind CSS](https://tailwindcss.com), fontes Geist e Geist Mono

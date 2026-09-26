@@ -4,7 +4,7 @@ import { describeChordInKey } from "../theory/continuations";
 import { intervalLabel, keyPhrase, solfegePitch, spokenChord } from "../theory/speech";
 import { useHarmonyStore } from "../store/useHarmonyStore";
 import { ChordSymbol } from "./ChordSymbol";
-import { familyName, groupVar } from "./groupMeta";
+import { familyName, groupLineVar, groupVar } from "./groupMeta";
 import { PianoKeyboard } from "./PianoKeyboard";
 import { useSoundingProgress } from "./useSounding";
 
@@ -48,7 +48,7 @@ export function NotesPanel() {
           <PianoKeyboard notes={shown.notes} group={shown.group} active={active} />
           <div className="chips" data-testid="note-names">
             {notes.map((note) => (
-              <div key={note} className="chip" style={{ borderColor: note === root ? color : "var(--color-line)" }}>
+              <div key={note} className="chip" style={{ borderColor: note === root ? groupLineVar(shown.group) : "var(--color-line)" }}>
                 <span className="chip-letter">{musicGlyphs(note)}</span>
                 <span className="chip-solfege">{solfegePitch(note)}</span>
                 <span className="chip-interval">{intervalLabel(root, note)}</span>

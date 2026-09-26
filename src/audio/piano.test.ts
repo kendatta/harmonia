@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import "./webAudioPolyfill";
 import * as Tone from "tone";
-import { describe, expect, it } from "vitest";
-import { RELEASE_SECONDS, SYNTH_OPTIONS, holdSeconds } from "./piano";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { RELEASE_SECONDS, SOUND_STORAGE_KEY, SYNTH_OPTIONS, getSoundChoice, holdSeconds, loadSoundChoice, playerFor, setSoundChoice, soundChoiceFrom, soundStatus } from "./piano";
 
 function envelopeEnd(channel: Float32Array, sampleRate: number): number {
   const windowSize = Math.max(1, Math.floor(sampleRate * 0.02));
@@ -53,6 +53,66 @@ async function renderEnd(audibleSeconds: number, path: "synth" | "sampler"): Pro
   );
   return envelopeEnd(rendered.getChannelData(0), sampleRate);
 }
+
+describe("seletor de som", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    loadSoundChoice("");
+  });
+
+  it("começa no piano e ignora um valor gravado inválido", () => {
+    expect(soundChoiceFrom("", null)).toBe("piano");
+    expect(soundChoiceFrom("", "órgão")).toBe("piano");
+    expect(getSoundChoice()).toBe("piano");
+  });
+
+  it("grava a escolha e a relê", () => {
+    setSoundChoice("synth");
+    expect(localStorage.getItem(SOUND_STORAGE_KEY)).toBe("synth");
+    expect(getSoundChoice()).toBe("synth");
+    loadSoundChoice("");
+    expect(getSoundChoice()).toBe("synth");
+    setSoundChoice("piano");
+    loadSoundChoice("");
+    expect(getSoundChoice()).toBe("piano");
+  });
+
+  it("deixa ?synth=1 vencer o valor gravado, sem reescrevê-lo", () => {
+    localStorage.setItem(SOUND_STORAGE_KEY, "piano");
+    expect(soundChoiceFrom("?synth=1", "piano")).toBe("synth");
+    expect(loadSoundChoice("?synth=1")).toBe("synth");
+    expect(localStorage.getItem(SOUND_STORAGE_KEY)).toBe("piano");
+    expect(getSoundChoice()).toBe("synth");
+  });
+
+  it("escolhe o sampler só quando Piano está selecionado e as amostras carregaram", () => {
+    expect(playerFor("piano", true)).toBe("sampler");
+    expect(playerFor("piano", false)).toBe("synth");
+    expect(playerFor("synth", true)).toBe("synth");
+    expect(playerFor("synth", false)).toBe("synth");
+  });
+
+  it("explica o piano que ainda não está pronto e fica quieto no sintetizador", () => {
+    expect(soundStatus("piano", "loading")).toBe("Carregando piano…");
+    expect(soundStatus("piano", "synth")).toBe("Amostras indisponíveis · sintetizador");
+    expect(soundStatus("piano", "sampler")).toBeNull();
+    expect(soundStatus("piano", "idle")).toBeNull();
+    expect(soundStatus("synth", "loading")).toBeNull();
+    expect(soundStatus("synth", "synth")).toBeNull();
+  });
+
+  it("mantém a escolha na memória se o navegador recusar a gravação", () => {
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("quota", "QuotaExceededError");
+    });
+    try {
+      setSoundChoice("synth");
+      expect(getSoundChoice()).toBe("synth");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
 
 describe("duração audível", () => {
   it.each([

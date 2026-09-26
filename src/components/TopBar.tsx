@@ -1,14 +1,73 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { ArrowLeft, ChevronDown } from "lucide-react";
+import { ArrowLeft, ChevronDown, Moon, Sun } from "lucide-react";
 import { musicGlyphs } from "../theory/chords";
 import { polar } from "../theory/layout";
 import { keyPhrase } from "../theory/speech";
+import { setSoundChoice, soundStatus, type SoundChoice } from "../audio/piano";
 import { useHarmonyStore } from "../store/useHarmonyStore";
-import { useEngine } from "./useEngine";
+import { useEngine, useSoundChoice } from "./useEngine";
 import { plainSymbol } from "../theory/symbol";
 import { ChordPicker } from "./ChordPicker";
 import { Button } from "./ui/button";
+import { useTheme } from "../theme/useTheme";
+
+function SoundToggle({ choice }: { choice: SoundChoice }) {
+  const pianoRef = useRef<HTMLButtonElement | null>(null);
+  const synthRef = useRef<HTMLButtonElement | null>(null);
+
+  const choose = (next: SoundChoice) => {
+    setSoundChoice(next);
+    (next === "piano" ? pianoRef : synthRef).current?.focus();
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft" && event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    event.preventDefault();
+    choose(choice === "piano" ? "synth" : "piano");
+  };
+
+  return (
+    <div className="sound-toggle" role="radiogroup" aria-label="Som" data-testid="sound-toggle">
+      <button
+        ref={pianoRef}
+        type="button"
+        role="radio"
+        className="sound-option"
+        aria-checked={choice === "piano"}
+        tabIndex={choice === "piano" ? 0 : -1}
+        data-testid="sound-piano"
+        onClick={() => choose("piano")}
+        onKeyDown={onKeyDown}
+      >
+        Piano
+      </button>
+      <button
+        ref={synthRef}
+        type="button"
+        role="radio"
+        className="sound-option"
+        aria-checked={choice === "synth"}
+        tabIndex={choice === "synth" ? 0 : -1}
+        data-testid="sound-synth"
+        onClick={() => choose("synth")}
+        onKeyDown={onKeyDown}
+      >
+        Sintetizador
+      </button>
+    </div>
+  );
+}
+
+function ThemeToggle() {
+  const { theme, toggle, label } = useTheme();
+  const Icon = theme === "dark" ? Sun : Moon;
+  return (
+    <button type="button" className="theme-toggle" aria-label={label} data-tooltip={label} data-testid="theme-toggle" onClick={toggle}>
+      <Icon size={16} strokeWidth={1.5} />
+    </button>
+  );
+}
 
 const MAJORS = ["C", "G", "D", "A", "E", "B", "F#", "Db", "Ab", "Eb", "Bb", "F"] as const;
 const MINORS = ["A", "E", "B", "F#", "C#", "G#", "D#", "Bb", "F", "C", "G", "D"] as const;
@@ -21,6 +80,8 @@ export function TopBar() {
   const back = useHarmonyStore((state) => state.back);
   const applyStart = useHarmonyStore((state) => state.applyStart);
   const engine = useEngine();
+  const sound = useSoundChoice();
+  const status = soundStatus(sound, engine);
   const reduced = useReducedMotion() ?? false;
   const [wheelOpen, setWheelOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -63,9 +124,10 @@ export function TopBar() {
         </p>
       </div>
       <div className="top-right">
-        {engine === "loading" ? (
+        <SoundToggle choice={sound} />
+        {status ? (
           <span className="engine" data-testid="engine-status">
-            Carregando piano…
+            {status}
           </span>
         ) : null}
         <div className="popover-anchor" ref={pickerRef}>
@@ -140,6 +202,7 @@ export function TopBar() {
             </div>
           ) : null}
         </div>
+        <ThemeToggle />
       </div>
     </header>
   );
